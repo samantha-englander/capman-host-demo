@@ -11,6 +11,7 @@ const CloudSyncHost = Named('CloudSyncHost');
 abstract class GrpcModule {
   @lazySingleton
   @development
+  @demo
   @CloudSyncHost
   String provideDevCloudSyncHost() => 'ws-api.toasttab.com'; //unused
 
@@ -24,11 +25,6 @@ abstract class GrpcModule {
   @production
   @CloudSyncHost
   String provideProdCloudSyncHost() => 'ws-sync.toasttab.com';
-
-  @lazySingleton
-  @demo
-  @CloudSyncHost
-  String provideDemoCloudSyncHost() => 'ws-api.toasttab.com'; // unused — all calls mocked
 
   @lazySingleton
   CloudSyncServiceClient provideCloudSyncServiceClient(
