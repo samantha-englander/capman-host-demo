@@ -28,7 +28,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 24px;
+      gap: 32px;
       color: #ffffff;
       opacity: 1;
       transition: opacity 0.4s ease;
@@ -38,48 +38,51 @@
 
     #loading.fade-out { opacity: 0; }
 
+    /* ── Logo lockup ── */
+    #logo-lockup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #toast-icon {
+      width: 56px;
+      height: 56px;
+      opacity: 0.92;
+    }
+
     #loading-logo {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 700;
-      letter-spacing: -0.3px;
+      letter-spacing: -0.5px;
       color: #ffffff;
     }
 
-    #table-icon {
-      animation: icon-glow 2.6s ease-in-out infinite;
+    #loading-logo span {
+      color: #e8d5a3;
     }
 
-    @keyframes icon-glow {
-      0%, 100% { opacity: 0.65; filter: drop-shadow(0 0 6px rgba(232, 213, 163, 0.3)); }
-      50% { opacity: 1; filter: drop-shadow(0 0 18px rgba(232, 213, 163, 0.65)); }
-    }
-
-    .spinner-row {
+    /* ── Progressive fill dots ── */
+    .dot-track {
       display: flex;
-      gap: 8px;
+      gap: 7px;
       align-items: center;
     }
 
-    .dot {
-      width: 8px;
-      height: 8px;
-      background: #4ecdc4;
+    .fdot {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      animation: pulse 1.2s ease-in-out infinite;
-    }
-    .dot:nth-child(2) { animation-delay: 0.2s; }
-    .dot:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 0.3; transform: scale(0.8); }
-      50% { opacity: 1; transform: scale(1.2); }
+      background: rgba(255,255,255,0.15);
     }
 
+    /* ── Pun ── */
     #pun {
-      font-size: 15px;
-      color: rgba(255, 255, 255, 0.65);
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.5);
       letter-spacing: 0.1px;
-      min-height: 22px;
+      min-height: 20px;
       transition: opacity 0.5s ease;
     }
 
@@ -88,42 +91,78 @@
 </head>
 <body>
   <div id="loading">
-    <div id="loading-logo">Toast Tables</div>
-    <div id="table-icon">
-      <svg viewBox="0 0 64 64" width="72" height="72" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Fork -->
-        <line x1="14" y1="8" x2="14" y2="20" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="18" y1="8" x2="18" y2="20" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="22" y1="8" x2="22" y2="20" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
-        <path d="M14 20 Q18 26 18 30 L18 56" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
-        <path d="M22 20 Q18 26 18 30" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
-        <!-- Plate -->
-        <circle cx="32" cy="34" r="14" stroke="#e8d5a3" stroke-width="1.5" opacity="0.5"/>
-        <circle cx="32" cy="34" r="10" stroke="#e8d5a3" stroke-width="1" opacity="0.3"/>
-        <!-- Knife -->
-        <path d="M46 8 C50 8 52 12 52 20 L46 24 L46 56" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <div id="logo-lockup">
+      <!-- Toast slice icon -->
+      <svg id="toast-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- toast slice body -->
+        <rect x="10" y="14" width="36" height="32" rx="5" fill="#e8d5a3" opacity="0.9"/>
+        <!-- crust bottom -->
+        <rect x="10" y="38" width="36" height="8" rx="3" fill="#c8a96e" opacity="0.9"/>
+        <!-- heat waves -->
+        <path d="M20 8 Q22 5 24 8 Q26 11 28 8" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.55"/>
+        <path d="M28 8 Q30 5 32 8 Q34 11 36 8" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.55"/>
       </svg>
+
+      <div id="loading-logo">Toast <span>Tables</span></div>
     </div>
-    <div class="spinner-row">
-      <div class="dot"></div>
-      <div class="dot"></div>
-      <div class="dot"></div>
+
+    <div class="dot-track" id="dot-track">
+      <!-- 10 dots, filled by JS -->
+      <div class="fdot" id="d0"></div>
+      <div class="fdot" id="d1"></div>
+      <div class="fdot" id="d2"></div>
+      <div class="fdot" id="d3"></div>
+      <div class="fdot" id="d4"></div>
+      <div class="fdot" id="d5"></div>
+      <div class="fdot" id="d6"></div>
+      <div class="fdot" id="d7"></div>
+      <div class="fdot" id="d8"></div>
+      <div class="fdot" id="d9"></div>
     </div>
+
     <div id="pun">Seating your experience...</div>
   </div>
 
   <script>
+    // ── Progressive fill dots ──────────────────────────────────────────────────
+    var dots = Array.from({length: 10}, function(_, i) { return document.getElementById('d' + i); });
+    var filledColor = '#e8d5a3';
+    var emptyColor  = 'rgba(255,255,255,0.15)';
+    var dotIndex = 0;
+    var forward = true;
+
+    function stepDots() {
+      if (forward) {
+        if (dotIndex < dots.length) {
+          dots[dotIndex].style.background = filledColor;
+          dots[dotIndex].style.transition = 'background 0.18s ease';
+          dotIndex++;
+        } else {
+          forward = false;
+          setTimeout(function() {
+            dots.forEach(function(d) { d.style.background = emptyColor; });
+            dotIndex = 0;
+            forward = true;
+          }, 500);
+        }
+      }
+    }
+
+    setInterval(stepDots, 160);
+
+    // ── Pun rotation ──────────────────────────────────────────────────────────
     var puns = [
       "Seating your experience...",
-      "Adding you to the waitlist... just kidding.",
+      "Adding you to the waitlist… just kidding.",
       "Clearing the corner table for you...",
       "Polishing the silverware...",
       "Your table will be ready shortly...",
       "Briefing the host staff...",
       "Checking the reservation book...",
-      "Preparing tonight's floor plan...",
+      "Preparing tonight’s floor plan...",
       "Teaching the waitlist to wait patiently...",
-      "No walk-ins, we promise you're expected.",
+      "No walk-ins, we promise you’re expected.",
     ];
 
     var punEl = document.getElementById('pun');
@@ -140,6 +179,7 @@
 
     setInterval(rotatePun, 4500);
 
+    // ── Hide on first Flutter frame ───────────────────────────────────────────
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('loading');
       if (el) {

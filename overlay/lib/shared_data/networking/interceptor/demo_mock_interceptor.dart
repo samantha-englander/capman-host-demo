@@ -33,23 +33,37 @@ class DemoMockInterceptor extends Interceptor {
   }
 
   dynamic _respond(String method, String path) {
+    // Auth
     if (path.contains('oauth/token')) return _authToken();
     if (path.contains('device')) return _deviceInfo();
-    if (method == 'GET' && path.contains('restaurantAccess')) return [_restaurant()];
-    if (method == 'GET' && path.endsWith('/app/restaurant')) return [_restaurantInfo()];
-    if (method == 'GET' && path.contains('/restaurants/v1/restaurants')) return [_restaurant()];
-    if (method == 'GET' && path.contains('/restaurants/v1/restaurant/')) return _restaurant();
+
+    // Restaurant selection — ALL use parseJsonList → {"results": [...]}
+    if (method == 'GET' && path.contains('restaurantAccess')) return {'results': [_restaurantDto()]};
+    if (method == 'GET' && path.endsWith('/app/restaurant')) return {'results': [_restaurantInfo()]};
+
+    // Management group
     if (path.contains('managementGroup')) return {'managementGroups': [_managementGroup()]};
-    if (method == 'GET' && path.contains('serviceArea')) return _serviceAreas();
-    if (method == 'GET' && path.endsWith('/bookings')) return _bookings();
-    if (method == 'POST' && path.endsWith('/bookings')) return {'guid': 'booking-${DateTime.now().millisecondsSinceEpoch}'};
-    if (method == 'PATCH' && path.contains('/bookings/')) return {'guid': path.split('/').last};
-    if (method == 'DELETE' && path.contains('/bookings/')) return {'success': true};
-    if (method == 'GET' && path.contains('/servers')) return _servers();
-    if (method == 'GET' && path.contains('/schedule')) return _schedule();
+
+    // Floor plan — parseJsonList → {"results": [...]}
+    if (method == 'GET' && path.contains('serviceAreaGroups')) return {'results': _serviceAreaGroups()};
+    if (method == 'GET' && path.contains('serviceAreas')) return {'results': _serviceAreaGeometries()};
+
+    // Bookings — parseJsonList → {"results": [...]}
+    if (method == 'GET' && path.endsWith('/bookings')) return {'results': _bookings()};
+    if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
+    if (method == 'PATCH' && path.contains('/booking/')) return {'results': <dynamic>[]};
+    if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
+
+    // Roster — parseJsonList → {"results": [...]}
+    if (method == 'GET' && path.contains('serverAssignment')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('shiftCutoff')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('employee/list')) return {'results': <dynamic>[]};
+
+    // Other endpoints
     if (path.contains('smsThread') || path.contains('experience')) return <dynamic>[];
     if (path.contains('appConfig')) return {'features': <String, dynamic>{}};
     if (method == 'POST' && path.contains('cloudSync')) return {'bookings': <dynamic>[]};
+
     return <String, dynamic>{};
   }
 
@@ -81,29 +95,17 @@ class DemoMockInterceptor extends Interceptor {
       };
 
   // ── Restaurant ────────────────────────────────────────────────────────────
+  // RestaurantDto fields: restaurantGuid, name, managementGroupGuid?, restaurantSetGuid?
 
-  Map<String, dynamic> _restaurant() => {
-        'guid': 'demo-restaurant-guid-1234',
+  Map<String, dynamic> _restaurantDto() => {
         'restaurantGuid': 'demo-restaurant-guid-1234',
-        'managementGroupGuid': 'demo-group-guid',
         'name': 'The Demo Kitchen',
-        'restaurantName': 'The Demo Kitchen',
-        'address': {
-          'address1': '123 Main St',
-          'city': 'Boston',
-          'state': 'MA',
-          'zip': '02101',
-        },
-        'phone': '617-555-0100',
-        'timeZone': 'America/New_York',
-        'currency': 'USD',
-        'features': {
-          'reservationsEnabled': true,
-          'waitlistEnabled': true,
-        },
+        'managementGroupGuid': 'demo-group-guid',
+        'restaurantSetGuid': null,
       };
 
   // ── Restaurant Info ───────────────────────────────────────────────────────
+  // RestaurantInfoDto fields (all required non-null shown explicitly)
 
   Map<String, dynamic> _restaurantInfo() => {
         'timezone': 'America/New_York',
@@ -117,101 +119,145 @@ class DemoMockInterceptor extends Interceptor {
         'locale': null,
       };
 
-  // ── Service Areas & Tables ────────────────────────────────────────────────
+  // ── Service Area Groups ───────────────────────────────────────────────────
+  // ServiceAreaGroup: name, guid, serviceAreas (List<String>), enabled
 
-  List<Map<String, dynamic>> _serviceAreas() => [
+  List<Map<String, dynamic>> _serviceAreaGroups() => [
+        {
+          'guid': 'group-main',
+          'name': 'All Areas',
+          'serviceAreas': ['area-main', 'area-bar', 'area-patio'],
+          'enabled': true,
+        },
+      ];
+
+  // ── Service Area Geometries ───────────────────────────────────────────────
+  // ServiceAreaGeometryServer: name?, guid, tables (List<String> GUIDs), shapes
+
+  List<Map<String, dynamic>> _serviceAreaGeometries() => [
         {
           'guid': 'area-main',
           'name': 'Main Dining',
-          'tables': _tables('main', 10),
+          'tables': List.generate(10, (i) => 'table-main-${i + 1}'),
+          'shapes': <dynamic>[],
         },
         {
           'guid': 'area-bar',
           'name': 'Bar',
-          'tables': _tables('bar', 4),
+          'tables': List.generate(4, (i) => 'table-bar-${i + 1}'),
+          'shapes': <dynamic>[],
         },
         {
           'guid': 'area-patio',
           'name': 'Patio',
-          'tables': _tables('patio', 6),
+          'tables': List.generate(6, (i) => 'table-patio-${i + 1}'),
+          'shapes': <dynamic>[],
         },
       ];
 
-  List<Map<String, dynamic>> _tables(String prefix, int count) =>
-      List.generate(count, (i) => {
-            'guid': 'table-$prefix-${i + 1}',
-            'name': '${i + 1}',
-            'minPartySize': 1,
-            'maxPartySize': prefix == 'bar' ? 2 : 6,
-            'shape': 'RECTANGLE',
-            'x': (i % 5) * 120,
-            'y': (i ~/ 5) * 120,
-            'width': 80,
-            'height': 80,
-          });
-
   // ── Bookings ──────────────────────────────────────────────────────────────
+  // BookingDto uses bookingType, bookingStatus (R_SEATED/R_CONFIRMED/W_WAITING),
+  // expectedStartTime/expectedEndTime, tables (GUIDs), serviceAreas (GUIDs), etc.
 
   List<Map<String, dynamic>> _bookings() {
     final now = DateTime.now();
-    final names = ['Johnson', 'Smith', 'Williams', 'Brown', 'Garcia', 'Martinez', 'Davis', 'Wilson', 'Anderson', 'Taylor'];
+    final lastNames = ['Johnson', 'Smith', 'Williams', 'Brown', 'Garcia', 'Martinez', 'Davis', 'Wilson', 'Anderson', 'Taylor'];
     final partySizes = [4, 2, 3, 6, 2, 4, 3, 2, 5, 3];
 
-    final reservations = List.generate(6, (i) => {
-          'guid': 'res-${i + 1}',
-          'type': 'RESERVATION',
-          'status': i < 2 ? 'SEATED' : 'CONFIRMED',
-          'guestName': names[i],
-          'partySize': partySizes[i],
-          'estimatedArrivalTime': i < 2
-              ? now.subtract(Duration(minutes: 15 + i * 10)).toIso8601String()
-              : now.add(Duration(minutes: i * 15)).toIso8601String(),
-          'serviceAreaGuid': 'area-main',
-          'tableGuids': i < 2 ? ['table-main-${i + 1}'] : <String>[],
-          'phone': '617-555-01${i.toString().padLeft(2, '0')}',
-          'notes': i == 1 ? 'Anniversary dinner' : '',
-          'createdDate': now.subtract(Duration(minutes: 60 + i * 30)).toIso8601String(),
-        });
+    final reservations = List.generate(6, (i) {
+      final isSeated = i < 2;
+      final start = isSeated
+          ? now.subtract(Duration(minutes: 15 + i * 10))
+          : now.add(Duration(minutes: i * 15));
+      return _booking(
+        guid: 'res-${i + 1}',
+        bookingType: 'RESERVATION',
+        bookingStatus: isSeated ? 'R_SEATED' : 'R_CONFIRMED',
+        partySize: partySizes[i],
+        expectedStartTime: start,
+        tables: isSeated ? ['table-main-${i + 1}'] : [],
+        serviceAreas: isSeated ? ['area-main'] : [],
+        visitNotes: i == 1 ? 'Anniversary dinner' : null,
+        guestLastName: lastNames[i],
+        guestIndex: i,
+        createdAt: now.subtract(Duration(minutes: 60 + i * 30)),
+      );
+    });
 
-    final waitlist = List.generate(4, (i) => {
-          'guid': 'wait-${i + 1}',
-          'type': 'WAITLIST',
-          'status': 'WAITING',
-          'guestName': names[i + 6],
-          'partySize': partySizes[i + 6],
-          'quotedWaitTime': (i + 1) * 10,
-          'addedTime': now.subtract(Duration(minutes: 5 + i * 8)).toIso8601String(),
-          'phone': '617-555-02${i.toString().padLeft(2, '0')}',
-          'notes': '',
-          'createdDate': now.subtract(Duration(minutes: 5 + i * 8)).toIso8601String(),
-        });
+    final waitlist = List.generate(4, (i) {
+      return _booking(
+        guid: 'wait-${i + 1}',
+        bookingType: 'WAITLIST',
+        bookingStatus: 'W_WAITING',
+        partySize: partySizes[i + 6],
+        expectedStartTime: now.add(Duration(minutes: (i + 1) * 10)),
+        tables: [],
+        serviceAreas: [],
+        guestLastName: lastNames[i + 6],
+        guestIndex: i + 6,
+        createdAt: now.subtract(Duration(minutes: 5 + i * 8)),
+      );
+    });
 
     return [...reservations, ...waitlist];
   }
 
-  // ── Servers ───────────────────────────────────────────────────────────────
-
-  List<Map<String, dynamic>> _servers() => [
-        {'guid': 'server-1', 'name': 'Alex', 'tableGuids': ['table-main-1', 'table-main-2']},
-        {'guid': 'server-2', 'name': 'Jordan', 'tableGuids': ['table-main-3', 'table-main-4']},
-        {'guid': 'server-3', 'name': 'Casey', 'tableGuids': ['table-bar-1', 'table-bar-2']},
-      ];
-
-  // ── Schedule ──────────────────────────────────────────────────────────────
-
-  Map<String, dynamic> _schedule() {
-    final now = DateTime.now();
-    return {
-      'shifts': [
-        {
-          'guid': 'shift-1',
-          'name': 'Dinner Service',
-          'startTime': now.subtract(const Duration(minutes: 60)).toIso8601String(),
-          'endTime': now.add(const Duration(minutes: 180)).toIso8601String(),
-          'reservationInterval': 15,
-          'maxCovers': 80,
+  Map<String, dynamic> _booking({
+    required String guid,
+    required String bookingType,
+    required String bookingStatus,
+    required int partySize,
+    required DateTime expectedStartTime,
+    required List<String> tables,
+    required List<String> serviceAreas,
+    required String guestLastName,
+    required int guestIndex,
+    required DateTime createdAt,
+    String? visitNotes,
+  }) =>
+      {
+        'guid': guid,
+        'bookingType': bookingType,
+        'bookingStatus': bookingStatus,
+        'partySize': partySize,
+        'expectedStartTime': expectedStartTime.toIso8601String(),
+        'expectedEndTime': expectedStartTime.add(const Duration(minutes: 90)).toIso8601String(),
+        'actualStartTime': tables.isNotEmpty ? expectedStartTime.toIso8601String() : null,
+        'actualEndTime': null,
+        'tables': tables,
+        'serviceAreas': serviceAreas,
+        'serviceAreaGroup': null,
+        'requestedServiceAreaGroups': <String>[],
+        'server': null,
+        'firstNotified': null,
+        'lastNotified': null,
+        'notificationCount': 0,
+        'cancelledTime': null,
+        'dismissToHistory': false,
+        'cancellationSource': null,
+        'depositOrderId': null,
+        'paymentStatus': null,
+        'depositPaymentExpirationDatetime': null,
+        'depositRefundableCancellationDatetime': null,
+        'depositAmount': null,
+        'visitNotes': visitNotes,
+        'bookingNotes': null,
+        'bookingSource': null,
+        'bookableId': null,
+        'requestedTable': <String>[],
+        'paymentConfigType': null,
+        'paymentConfigSnapshot': null,
+        'arrivedTime': null,
+        'toastPayEnabled': null,
+        'paymentMandateId': null,
+        'guest': {
+          'guid': 'guest-$guestIndex',
+          'firstName': '',
+          'lastName': guestLastName,
+          'phone': '617-555-0${guestIndex.toString().padLeft(3, '0')}',
+          'email': null,
         },
-      ],
-    };
-  }
+        'createdDate': createdAt.toIso8601String(),
+        'modifiedDate': createdAt.toIso8601String(),
+      };
 }
