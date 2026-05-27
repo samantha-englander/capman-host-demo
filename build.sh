@@ -11,6 +11,8 @@ echo "==> Injecting overlay files..."
 cp overlay/lib/di/env.dart              _capman_host/lib/di/env.dart
 cp overlay/lib/di/networking_module.dart _capman_host/lib/di/networking_module.dart
 cp overlay/lib/di/auth_module.dart      _capman_host/lib/di/auth_module.dart
+cp overlay/lib/di/launchdarkly_module.dart _capman_host/lib/di/launchdarkly_module.dart
+cp overlay/lib/di/plugin_module.dart    _capman_host/lib/di/plugin_module.dart
 cp overlay/lib/features/session/data/demo_auth_service.dart \
    _capman_host/lib/features/session/data/demo_auth_service.dart
 cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
