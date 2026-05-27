@@ -33,6 +33,7 @@ flutter pub run build_runner build --delete-conflicting-outputs
 echo "==> Building Flutter Web..."
 flutter build web \
   --target lib/main_demo.dart \
-  --release
+  --release \
+  --base-href /capman-host-demo/
 
 echo "==> Done. Output: _capman_host/build/web/"
