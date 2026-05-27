@@ -22,6 +22,8 @@ class DemoMockInterceptor extends Interceptor {
     }
     final method = options.method.toUpperCase();
     final path = options.uri.path;
+    // ignore: avoid_print
+    print('[DEMO] $method $path');
     handler.resolve(Response(
       requestOptions: options,
       data: _respond(method, path),
