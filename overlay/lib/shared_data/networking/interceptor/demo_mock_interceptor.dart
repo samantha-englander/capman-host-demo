@@ -36,6 +36,7 @@ class DemoMockInterceptor extends Interceptor {
     if (path.contains('oauth/token')) return _authToken();
     if (path.contains('device')) return _deviceInfo();
     if (method == 'GET' && path.contains('restaurantAccess')) return [_restaurant()];
+    if (method == 'GET' && path.endsWith('/app/restaurant')) return [_restaurantInfo()];
     if (method == 'GET' && path.contains('/restaurants/v1/restaurants')) return [_restaurant()];
     if (method == 'GET' && path.contains('/restaurants/v1/restaurant/')) return _restaurant();
     if (path.contains('managementGroup')) return {'managementGroups': [_managementGroup()]};
@@ -100,6 +101,20 @@ class DemoMockInterceptor extends Interceptor {
           'reservationsEnabled': true,
           'waitlistEnabled': true,
         },
+      };
+
+  // ── Restaurant Info ───────────────────────────────────────────────────────
+
+  Map<String, dynamic> _restaurantInfo() => {
+        'timezone': 'America/New_York',
+        'reservationsEnabled': true,
+        'waitlistEnabled': true,
+        'closeOutHour': null,
+        'twoWaySmsEnabled': false,
+        'orderCreationEnabled': false,
+        'waitlistNotifySmsEnabled': false,
+        'reservationNotifySmsEnabled': false,
+        'locale': null,
       };
 
   // ── Service Areas & Tables ────────────────────────────────────────────────
