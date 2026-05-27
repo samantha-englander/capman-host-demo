@@ -1,20 +1,30 @@
-import 'package:capman_host/di/env.dart';
+import 'package:capman_host/shared_ui/bloc/app_config/app_config_state.dart';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
+// Registered for ALL environments (no @demo tag) so it can be injected into
+// dev+demo Dio clients. Only intercepts when isDemo is true (release build
+// with debugFeaturesEnabled=true, non-prod, non-staging).
 @LazySingleton()
-@demo
 class DemoMockInterceptor extends Interceptor {
+  final bool _isDemo;
+
+  DemoMockInterceptor(AppConfigState config)
+      : _isDemo = config.debugFeaturesEnabled &&
+            !config.isProduction &&
+            !config.isStaging;
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (!_isDemo) {
+      handler.next(options);
+      return;
+    }
     final method = options.method.toUpperCase();
     final path = options.uri.path;
-    // ignore: avoid_print
-    print('[DemoMock] $method $path');
-    final data = _respond(method, path);
     handler.resolve(Response(
       requestOptions: options,
-      data: data,
+      data: _respond(method, path),
       statusCode: 200,
       statusMessage: 'OK',
     ));
@@ -22,17 +32,18 @@ class DemoMockInterceptor extends Interceptor {
 
   dynamic _respond(String method, String path) {
     if (path.contains('oauth/token')) return _authToken();
-    if (method == 'GET' && path.endsWith('/restaurants/v1/restaurants')) return [_restaurant()];
-    if (method == 'GET' && path.contains('/restaurants/v1/restaurants/')) return _restaurant();
-    if (path.contains('managementGroups')) return [{'guid': 'demo-group-1', 'name': 'Demo Group'}];
-    if (method == 'GET' && path.contains('serviceAreas')) return _serviceAreas();
+    if (path.contains('device')) return _deviceInfo();
+    if (method == 'GET' && path.contains('/restaurants/v1/restaurants')) return [_restaurant()];
+    if (method == 'GET' && path.contains('/restaurants/v1/restaurant/')) return _restaurant();
+    if (path.contains('managementGroup')) return {'managementGroups': [_managementGroup()]};
+    if (method == 'GET' && path.contains('serviceArea')) return _serviceAreas();
     if (method == 'GET' && path.endsWith('/bookings')) return _bookings();
     if (method == 'POST' && path.endsWith('/bookings')) return {'guid': 'booking-${DateTime.now().millisecondsSinceEpoch}'};
     if (method == 'PATCH' && path.contains('/bookings/')) return {'guid': path.split('/').last};
     if (method == 'DELETE' && path.contains('/bookings/')) return {'success': true};
     if (method == 'GET' && path.contains('/servers')) return _servers();
     if (method == 'GET' && path.contains('/schedule')) return _schedule();
-    if (path.contains('smsThreads') || path.contains('experiences')) return <dynamic>[];
+    if (path.contains('smsThread') || path.contains('experience')) return <dynamic>[];
     if (path.contains('appConfig')) return {'features': <String, dynamic>{}};
     if (method == 'POST' && path.contains('cloudSync')) return {'bookings': <dynamic>[]};
     return <String, dynamic>{};
@@ -47,11 +58,32 @@ class DemoMockInterceptor extends Interceptor {
         'expires_in': 86400,
       };
 
+  // ── Device ────────────────────────────────────────────────────────────────
+
+  Map<String, dynamic> _deviceInfo() => {
+        'guid': 'demo-device-guid',
+        'deviceGuid': 'demo-device-guid',
+        'token': 'demo-device-token',
+        'apiToken': 'demo-device-token',
+        'status': 'ACTIVE',
+      };
+
+  // ── Management Group ──────────────────────────────────────────────────────
+
+  Map<String, dynamic> _managementGroup() => {
+        'guid': 'demo-group-guid',
+        'managementGroupGuid': 'demo-group-guid',
+        'name': 'Demo Group',
+      };
+
   // ── Restaurant ────────────────────────────────────────────────────────────
 
   Map<String, dynamic> _restaurant() => {
         'guid': 'demo-restaurant-guid-1234',
+        'restaurantGuid': 'demo-restaurant-guid-1234',
+        'managementGroupGuid': 'demo-group-guid',
         'name': 'The Demo Kitchen',
+        'restaurantName': 'The Demo Kitchen',
         'address': {
           'address1': '123 Main St',
           'city': 'Boston',

@@ -26,6 +26,7 @@ const timeout = Duration(seconds: 10);
 abstract class NetworkingModule {
   @LazySingleton()
   @development
+  @demo
   @BookingDomain
   String provideDevBaseUrl() => 'https://ws-dev.eng.toastteam.com/';
 
@@ -40,20 +41,44 @@ abstract class NetworkingModule {
   @BookingDomain
   String provideProdBaseUrl() => 'https://ws-api.toasttab.com/';
 
-  @LazySingleton()
-  @demo
-  @BookingDomain
-  String provideDemoBaseUrl() => 'http://localhost';
-
-  // ── Non-demo Dio clients (unchanged from original) ────────────────────────
+  // ── UserAuth Dio ──────────────────────────────────────────────────────────
+  // @demo stacked on @development. DemoMockInterceptor (all-envs singleton)
+  // short-circuits all requests when running as demo, passes through in dev.
 
   @LazySingleton()
   @development
+  @demo
+  @UserAuthClient
+  Dio provideUserAuthDio(
+    UserAuthInterceptor userAuthInterceptor,
+    ModifyByInterceptor modifyByInterceptor,
+    NetworkLogInterceptor logInterceptor,
+    VersionHeaderInterceptor versionInterceptor,
+    ErrorLoggerInterceptor errorLoggerInterceptor,
+    DemoMockInterceptor demoMockInterceptor,
+    @BookingDomain String baseUrl,
+  ) =>
+      Dio(
+          BaseOptions(
+            baseUrl: baseUrl,
+            connectTimeout: timeout,
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+          ),
+        )
+        ..interceptors.add(demoMockInterceptor) // first — short-circuits in demo
+        ..interceptors.add(userAuthInterceptor)
+        ..interceptors.add(modifyByInterceptor)
+        ..interceptors.add(versionInterceptor)
+        ..interceptors.add(logInterceptor)
+        ..interceptors.add(errorLoggerInterceptor);
+
+  @LazySingleton()
   @staging
   @production
   @testEnvironment
   @UserAuthClient
-  Dio provideUserAuthDio(
+  Dio provideUserAuthDioNonDev(
     UserAuthInterceptor userAuthInterceptor,
     ModifyByInterceptor modifyByInterceptor,
     NetworkLogInterceptor logInterceptor,
@@ -75,13 +100,46 @@ abstract class NetworkingModule {
         ..interceptors.add(logInterceptor)
         ..interceptors.add(errorLoggerInterceptor);
 
+  // ── DeviceAuth Dio ────────────────────────────────────────────────────────
+
   @LazySingleton()
   @development
+  @demo
+  @DeviceAuthClient
+  Dio provideDeviceAuthDio(
+    DeviceAuthInterceptor deviceAuthInterceptor,
+    ModifyByInterceptor modifyByInterceptor,
+    RestaurantInterceptor restaurantInterceptor,
+    NetworkLogInterceptor logInterceptor,
+    VersionHeaderInterceptor versionInterceptor,
+    ErrorLoggerInterceptor errorLoggerInterceptor,
+    DebugNetworkInterceptor debugNetworkInterceptor,
+    DemoMockInterceptor demoMockInterceptor,
+    @BookingDomain String baseUrl,
+  ) =>
+      Dio(
+          BaseOptions(
+            baseUrl: baseUrl,
+            connectTimeout: timeout,
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+          ),
+        )
+        ..interceptors.add(demoMockInterceptor) // first — short-circuits in demo
+        ..interceptors.add(deviceAuthInterceptor)
+        ..interceptors.add(modifyByInterceptor)
+        ..interceptors.add(restaurantInterceptor)
+        ..interceptors.add(versionInterceptor)
+        ..interceptors.add(logInterceptor)
+        ..interceptors.add(errorLoggerInterceptor)
+        ..interceptors.add(debugNetworkInterceptor);
+
+  @LazySingleton()
   @staging
   @production
   @testEnvironment
   @DeviceAuthClient
-  Dio provideDeviceAuthDio(
+  Dio provideDeviceAuthDioNonDev(
     DeviceAuthInterceptor deviceAuthInterceptor,
     ModifyByInterceptor modifyByInterceptor,
     RestaurantInterceptor restaurantInterceptor,
@@ -107,13 +165,39 @@ abstract class NetworkingModule {
         ..interceptors.add(errorLoggerInterceptor)
         ..interceptors.add(debugNetworkInterceptor);
 
+  // ── Auth0 Dio ─────────────────────────────────────────────────────────────
+
   @LazySingleton()
   @development
+  @demo
+  @Auth0
+  Dio provideAuth0Dio(
+    @AuthDomain String authDomain,
+    NetworkLogInterceptor logInterceptor,
+    VersionHeaderInterceptor versionInterceptor,
+    ErrorLoggerInterceptor errorLoggerInterceptor,
+    DemoMockInterceptor demoMockInterceptor,
+  ) =>
+      Dio(
+          BaseOptions(
+            baseUrl: 'https://$authDomain/',
+            connectTimeout: timeout,
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+            contentType: Headers.formUrlEncodedContentType,
+          ),
+        )
+        ..interceptors.add(demoMockInterceptor) // first — short-circuits in demo
+        ..interceptors.add(versionInterceptor)
+        ..interceptors.add(logInterceptor)
+        ..interceptors.add(errorLoggerInterceptor);
+
+  @LazySingleton()
   @staging
   @production
   @testEnvironment
   @Auth0
-  Dio provideAuth0Dio(
+  Dio provideAuth0DioNonDev(
     @AuthDomain String authDomain,
     NetworkLogInterceptor logInterceptor,
     VersionHeaderInterceptor versionInterceptor,
@@ -132,13 +216,38 @@ abstract class NetworkingModule {
         ..interceptors.add(logInterceptor)
         ..interceptors.add(errorLoggerInterceptor);
 
+  // ── PublicAuth Dio ────────────────────────────────────────────────────────
+
   @LazySingleton()
   @development
+  @demo
+  @PublicAuthClient
+  Dio providePublicAuthDio(
+    NetworkLogInterceptor logInterceptor,
+    VersionHeaderInterceptor versionInterceptor,
+    ErrorLoggerInterceptor errorLoggerInterceptor,
+    DemoMockInterceptor demoMockInterceptor,
+    @BookingDomain String baseUrl,
+  ) =>
+      Dio(
+          BaseOptions(
+            baseUrl: baseUrl,
+            connectTimeout: timeout,
+            sendTimeout: timeout,
+            receiveTimeout: timeout,
+          ),
+        )
+        ..interceptors.add(demoMockInterceptor) // first — short-circuits in demo
+        ..interceptors.add(versionInterceptor)
+        ..interceptors.add(logInterceptor)
+        ..interceptors.add(errorLoggerInterceptor);
+
+  @LazySingleton()
   @staging
   @production
   @testEnvironment
   @PublicAuthClient
-  Dio providePublicAuthDio(
+  Dio providePublicAuthDioNonDev(
     NetworkLogInterceptor logInterceptor,
     VersionHeaderInterceptor versionInterceptor,
     ErrorLoggerInterceptor errorLoggerInterceptor,
@@ -155,36 +264,6 @@ abstract class NetworkingModule {
         ..interceptors.add(versionInterceptor)
         ..interceptors.add(logInterceptor)
         ..interceptors.add(errorLoggerInterceptor);
-
-  // ── Demo Dio clients (all requests resolved by DemoMockInterceptor) ───────
-
-  @LazySingleton()
-  @demo
-  @UserAuthClient
-  Dio provideDemoUserAuthDio(DemoMockInterceptor mockInterceptor) =>
-      Dio(BaseOptions(baseUrl: 'http://localhost'))
-        ..interceptors.add(mockInterceptor);
-
-  @LazySingleton()
-  @demo
-  @DeviceAuthClient
-  Dio provideDemoDeviceAuthDio(DemoMockInterceptor mockInterceptor) =>
-      Dio(BaseOptions(baseUrl: 'http://localhost'))
-        ..interceptors.add(mockInterceptor);
-
-  @LazySingleton()
-  @demo
-  @Auth0
-  Dio provideDemoAuth0Dio(DemoMockInterceptor mockInterceptor) =>
-      Dio(BaseOptions(baseUrl: 'http://localhost'))
-        ..interceptors.add(mockInterceptor);
-
-  @LazySingleton()
-  @demo
-  @PublicAuthClient
-  Dio provideDemoPublicAuthDio(DemoMockInterceptor mockInterceptor) =>
-      Dio(BaseOptions(baseUrl: 'http://localhost'))
-        ..interceptors.add(mockInterceptor);
 
   // ── ApiClient wrappers (shared across all environments) ───────────────────
 
