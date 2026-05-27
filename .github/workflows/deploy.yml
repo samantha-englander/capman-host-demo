@@ -21,7 +21,6 @@ jobs:
       - name: Build
         env:
           TOAST_GITHUB_TOKEN: ${{ secrets.TOAST_GITHUB_TOKEN }}
-          MOCK_SERVER_URL: ${{ secrets.MOCK_SERVER_URL }}
         run: bash build.sh
 
       - name: Deploy to GitHub Pages

@@ -4,6 +4,7 @@ import 'package:capman_host/logging/network_log_interceptor.dart';
 import 'package:capman_host/shared_data/networking/api_client/api_client.dart';
 import 'package:capman_host/shared_data/networking/api_client/api_client_impl.dart';
 import 'package:capman_host/shared_data/networking/interceptor/debug_network_interceptor.dart';
+import 'package:capman_host/shared_data/networking/interceptor/demo_mock_interceptor.dart';
 import 'package:capman_host/shared_data/networking/interceptor/device_auth_interceptor.dart';
 import 'package:capman_host/shared_data/networking/interceptor/error_logger_interceptor.dart';
 import 'package:capman_host/shared_data/networking/interceptor/modify_by_interceptor.dart';
@@ -42,10 +43,15 @@ abstract class NetworkingModule {
   @LazySingleton()
   @demo
   @BookingDomain
-  String provideDemoBaseUrl() =>
-      const String.fromEnvironment('MOCK_SERVER_URL', defaultValue: 'http://localhost:3001');
+  String provideDemoBaseUrl() => 'http://localhost';
+
+  // ── Non-demo Dio clients (unchanged from original) ────────────────────────
 
   @LazySingleton()
+  @development
+  @staging
+  @production
+  @testEnvironment
   @UserAuthClient
   Dio provideUserAuthDio(
     UserAuthInterceptor userAuthInterceptor,
@@ -70,6 +76,10 @@ abstract class NetworkingModule {
         ..interceptors.add(errorLoggerInterceptor);
 
   @LazySingleton()
+  @development
+  @staging
+  @production
+  @testEnvironment
   @DeviceAuthClient
   Dio provideDeviceAuthDio(
     DeviceAuthInterceptor deviceAuthInterceptor,
@@ -98,6 +108,10 @@ abstract class NetworkingModule {
         ..interceptors.add(debugNetworkInterceptor);
 
   @LazySingleton()
+  @development
+  @staging
+  @production
+  @testEnvironment
   @Auth0
   Dio provideAuth0Dio(
     @AuthDomain String authDomain,
@@ -119,6 +133,10 @@ abstract class NetworkingModule {
         ..interceptors.add(errorLoggerInterceptor);
 
   @LazySingleton()
+  @development
+  @staging
+  @production
+  @testEnvironment
   @PublicAuthClient
   Dio providePublicAuthDio(
     NetworkLogInterceptor logInterceptor,
@@ -137,6 +155,38 @@ abstract class NetworkingModule {
         ..interceptors.add(versionInterceptor)
         ..interceptors.add(logInterceptor)
         ..interceptors.add(errorLoggerInterceptor);
+
+  // ── Demo Dio clients (all requests resolved by DemoMockInterceptor) ───────
+
+  @LazySingleton()
+  @demo
+  @UserAuthClient
+  Dio provideDemoUserAuthDio(DemoMockInterceptor mockInterceptor) =>
+      Dio(BaseOptions(baseUrl: 'http://localhost'))
+        ..interceptors.add(mockInterceptor);
+
+  @LazySingleton()
+  @demo
+  @DeviceAuthClient
+  Dio provideDemoDeviceAuthDio(DemoMockInterceptor mockInterceptor) =>
+      Dio(BaseOptions(baseUrl: 'http://localhost'))
+        ..interceptors.add(mockInterceptor);
+
+  @LazySingleton()
+  @demo
+  @Auth0
+  Dio provideDemoAuth0Dio(DemoMockInterceptor mockInterceptor) =>
+      Dio(BaseOptions(baseUrl: 'http://localhost'))
+        ..interceptors.add(mockInterceptor);
+
+  @LazySingleton()
+  @demo
+  @PublicAuthClient
+  Dio provideDemoPublicAuthDio(DemoMockInterceptor mockInterceptor) =>
+      Dio(BaseOptions(baseUrl: 'http://localhost'))
+        ..interceptors.add(mockInterceptor);
+
+  // ── ApiClient wrappers (shared across all environments) ───────────────────
 
   @LazySingleton()
   @UserAuthClient

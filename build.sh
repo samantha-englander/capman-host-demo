@@ -13,6 +13,8 @@ cp overlay/lib/di/networking_module.dart _capman_host/lib/di/networking_module.d
 cp overlay/lib/di/auth_module.dart      _capman_host/lib/di/auth_module.dart
 cp overlay/lib/features/session/data/demo_auth_service.dart \
    _capman_host/lib/features/session/data/demo_auth_service.dart
+cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
+   _capman_host/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart
 cp overlay/main_demo.dart               _capman_host/lib/main_demo.dart
 
 echo "==> Installing Flutter dependencies..."
@@ -25,7 +27,6 @@ flutter pub run build_runner build --delete-conflicting-outputs
 echo "==> Building Flutter Web..."
 flutter build web \
   --target lib/main_demo.dart \
-  --release \
-  --dart-define=MOCK_SERVER_URL=${MOCK_SERVER_URL}
+  --release
 
 echo "==> Done. Output: _capman_host/build/web/"
