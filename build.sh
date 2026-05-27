@@ -45,4 +45,7 @@ flutter build web \
   --release \
   --base-href /capman-host-demo/
 
+echo "==> Patching login button text for demo..."
+sed -i 's/Login with your Toast account/Start Demo/g' build/web/main.dart.js
+
 echo "==> Done. Output: _capman_host/build/web/"
