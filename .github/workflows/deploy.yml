@@ -1,0 +1,31 @@
+name: Build and Deploy Demo
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout demo repo
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build
+        env:
+          TOAST_GITHUB_TOKEN: ${{ secrets.TOAST_GITHUB_TOKEN }}
+          MOCK_SERVER_URL: ${{ secrets.MOCK_SERVER_URL }}
+        run: bash build.sh
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_capman_host/build/web
