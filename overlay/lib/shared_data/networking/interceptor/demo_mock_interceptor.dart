@@ -7,7 +7,11 @@ import 'package:injectable/injectable.dart';
 class DemoMockInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    final data = _respond(options.method.toUpperCase(), options.uri.path);
+    final method = options.method.toUpperCase();
+    final path = options.uri.path;
+    // ignore: avoid_print
+    print('[DemoMock] $method $path');
+    final data = _respond(method, path);
     handler.resolve(Response(
       requestOptions: options,
       data: data,

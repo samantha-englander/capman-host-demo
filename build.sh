@@ -17,6 +17,8 @@ cp overlay/lib/shared_ui/bloc/app_config/app_config_module.dart \
    _capman_host/lib/shared_ui/bloc/app_config/app_config_module.dart
 cp overlay/lib/shared_data/networking/cloud_sync/grpc_module.dart \
    _capman_host/lib/shared_data/networking/cloud_sync/grpc_module.dart
+cp overlay/web/index.html \
+   _capman_host/web/index.html
 cp overlay/lib/features/session/data/demo_auth_service.dart \
    _capman_host/lib/features/session/data/demo_auth_service.dart
 cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
