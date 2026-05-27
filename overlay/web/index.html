@@ -21,57 +21,115 @@
       align-items: center;
       height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
     }
 
     #loading {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 20px;
+      gap: 24px;
       color: #ffffff;
       opacity: 1;
       transition: opacity 0.4s ease;
+      text-align: center;
+      padding: 24px;
     }
 
-    #loading.fade-out {
-      opacity: 0;
-    }
+    #loading.fade-out { opacity: 0; }
 
     #loading-logo {
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.3px;
       color: #ffffff;
     }
 
-    #loading-sub {
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.5);
-      letter-spacing: 0.2px;
+    /* Bouncing table emoji */
+    #table-emoji {
+      font-size: 48px;
+      display: inline-block;
+      animation: bounce 1.2s ease-in-out infinite;
     }
 
-    .spinner {
-      width: 36px;
-      height: 36px;
-      border: 3px solid rgba(78, 205, 196, 0.25);
-      border-top-color: #4ecdc4;
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      45% { transform: translateY(-16px); }
+      55% { transform: translateY(-16px); }
+    }
+
+    .spinner-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: #4ecdc4;
       border-radius: 50%;
-      animation: spin 0.75s linear infinite;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    #pun {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.65);
+      letter-spacing: 0.1px;
+      min-height: 22px;
+      transition: opacity 0.5s ease;
     }
+
+    #pun.hidden { opacity: 0; }
   </style>
 </head>
 <body>
   <div id="loading">
     <div id="loading-logo">Toast Tables</div>
-    <div class="spinner"></div>
-    <div id="loading-sub">Loading demo, hang tight...</div>
+    <div id="table-emoji">🍽️</div>
+    <div class="spinner-row">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <div id="pun">Seating your experience...</div>
   </div>
 
   <script>
+    var puns = [
+      "Seating your experience...",
+      "Adding you to the waitlist... just kidding.",
+      "Clearing the corner table for you...",
+      "Polishing the silverware...",
+      "Your table will be ready shortly...",
+      "Briefing the host staff...",
+      "Checking the reservation book...",
+      "Preparing tonight's floor plan...",
+      "Teaching the waitlist to wait patiently...",
+      "No walk-ins, we promise you're expected.",
+    ];
+
+    var punEl = document.getElementById('pun');
+    var currentPun = 0;
+
+    function rotatePun() {
+      punEl.classList.add('hidden');
+      setTimeout(function () {
+        currentPun = (currentPun + 1) % puns.length;
+        punEl.textContent = puns[currentPun];
+        punEl.classList.remove('hidden');
+      }, 500);
+    }
+
+    setInterval(rotatePun, 2800);
+
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('loading');
       if (el) {
