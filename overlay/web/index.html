@@ -45,17 +45,13 @@
       color: #ffffff;
     }
 
-    /* Bouncing table emoji */
-    #table-emoji {
-      font-size: 48px;
-      display: inline-block;
-      animation: bounce 1.2s ease-in-out infinite;
+    #table-icon {
+      animation: icon-glow 2.6s ease-in-out infinite;
     }
 
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      45% { transform: translateY(-16px); }
-      55% { transform: translateY(-16px); }
+    @keyframes icon-glow {
+      0%, 100% { opacity: 0.65; filter: drop-shadow(0 0 6px rgba(232, 213, 163, 0.3)); }
+      50% { opacity: 1; filter: drop-shadow(0 0 18px rgba(232, 213, 163, 0.65)); }
     }
 
     .spinner-row {
@@ -93,7 +89,21 @@
 <body>
   <div id="loading">
     <div id="loading-logo">Toast Tables</div>
-    <div id="table-emoji">🍽️</div>
+    <div id="table-icon">
+      <svg viewBox="0 0 64 64" width="72" height="72" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Fork -->
+        <line x1="14" y1="8" x2="14" y2="20" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="18" y1="8" x2="18" y2="20" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="22" y1="8" x2="22" y2="20" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M14 20 Q18 26 18 30 L18 56" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M22 20 Q18 26 18 30" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round"/>
+        <!-- Plate -->
+        <circle cx="32" cy="34" r="14" stroke="#e8d5a3" stroke-width="1.5" opacity="0.5"/>
+        <circle cx="32" cy="34" r="10" stroke="#e8d5a3" stroke-width="1" opacity="0.3"/>
+        <!-- Knife -->
+        <path d="M46 8 C50 8 52 12 52 20 L46 24 L46 56" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
     <div class="spinner-row">
       <div class="dot"></div>
       <div class="dot"></div>
@@ -128,7 +138,7 @@
       }, 500);
     }
 
-    setInterval(rotatePun, 2800);
+    setInterval(rotatePun, 4500);
 
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('loading');

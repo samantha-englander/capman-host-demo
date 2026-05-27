@@ -35,6 +35,7 @@ class DemoMockInterceptor extends Interceptor {
   dynamic _respond(String method, String path) {
     if (path.contains('oauth/token')) return _authToken();
     if (path.contains('device')) return _deviceInfo();
+    if (method == 'GET' && path.contains('restaurantAccess')) return [_restaurant()];
     if (method == 'GET' && path.contains('/restaurants/v1/restaurants')) return [_restaurant()];
     if (method == 'GET' && path.contains('/restaurants/v1/restaurant/')) return _restaurant();
     if (path.contains('managementGroup')) return {'managementGroups': [_managementGroup()]};
