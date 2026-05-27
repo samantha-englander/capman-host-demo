@@ -17,6 +17,9 @@ cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
    _capman_host/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart
 cp overlay/main_demo.dart               _capman_host/lib/main_demo.dart
 
+echo "==> Configuring git for HTTPS access to Toast GitHub..."
+git config --global url."https://x-access-token:${TOAST_GITHUB_TOKEN}@github.toasttab.com/".insteadOf "git@github.toasttab.com:"
+
 echo "==> Installing Flutter dependencies..."
 cd _capman_host
 flutter pub get
