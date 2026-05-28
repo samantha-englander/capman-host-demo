@@ -138,9 +138,28 @@ class DemoMockInterceptor extends Interceptor {
     // Order completion / linking — parsed as List<OrderDto>. Empty results is safe.
     if (method == 'PATCH' && path.contains('/orders/')) return {'results': <dynamic>[]};
 
-    // Create-reservation flow — availabilities time picker + per-date config
-    if (method == 'GET' && path.contains('availabilitiesV2')) return {'results': _availabilities()};
-    if (method == 'GET' && path.contains('configInfo')) return _configInfo();
+    // Create-reservation flow.
+    //
+    // availabilitiesV2: parseJsonList<TimeSlotAvailability>
+    //   TimeSlotAvailability = {slots, bookableAvailabilityInfo, reservationsDisabled}
+    //   Empty slots = "no time slots" UI in the picker but no crash.
+    if (method == 'GET' && path.contains('availabilitiesV2')) return {
+          'results': [
+            {
+              'slots': <dynamic>[],
+              'bookableAvailabilityInfo': <dynamic>[],
+              'reservationsDisabled': false,
+            },
+          ],
+        };
+    // configInfo: parseJson<ScheduleInfoDto> = {message, results: [ScheduleGroupDto]}
+    // Empty results = no schedule but no crash. Was returning a flat object
+    // with wrong field names, causing "Something went wrong" on the
+    // Create New Reservation screen.
+    if (method == 'GET' && path.contains('configInfo')) return {
+          'message': null,
+          'results': <dynamic>[],
+        };
     // Waitlist wait-time estimate — parsed via parseJsonList<WaitInfoDto>,
     // so the response MUST be a {results: [...]} envelope. Was returning a
     // bare object, which crashed the "Add to waitlist" preview.
@@ -202,7 +221,9 @@ class DemoMockInterceptor extends Interceptor {
     if (path.contains('smsThread')) return {'results': <dynamic>[]};
     // Waitlist/reservation notify — succeed silently so UI completes the flow
     if (path.contains('notify')) return {'results': <dynamic>[]};
-    if (path.contains('experience')) return <dynamic>[];
+    // experiences: parseJson<ExperienceInfoDto> = {message, results: [[ExperienceDto]]}
+    // Single object, NOT a raw list. We used to return [] which would parse-error.
+    if (path.contains('experience')) return {'message': null, 'results': <dynamic>[]};
     if (path.contains('appConfig')) return {'features': <String, dynamic>{}};
     if (method == 'POST' && path.contains('cloudSync')) return {'bookings': <dynamic>[]};
 
