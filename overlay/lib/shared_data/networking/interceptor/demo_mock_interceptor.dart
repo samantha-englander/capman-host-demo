@@ -291,7 +291,7 @@ class DemoMockInterceptor extends Interceptor {
           arrivedAt: now.subtract(const Duration(minutes: 8))),
       _booking(guid: 'arr-3', type: 'RESERVATION', status: 'R_ARRIVED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 20))),
-          tables: ['t-4'], areas: ['area-dining'],
+          tables: ['t-4'], areas: ['area-dining'], pinned: true,
           firstName: 'Angela', lastName: 'Perez', phone: '17185551435',
           email: 'angela.perez@fakemail.com',
           created: now.subtract(const Duration(hours: 6)),
@@ -306,7 +306,7 @@ class DemoMockInterceptor extends Interceptor {
       // Patio tables (t-p3…t-p6) available for later waves.
       _booking(guid: 'res-1', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: _q(now.add(const Duration(minutes: 30))),
-          tables: ['t-5'], areas: ['area-dining'],
+          tables: ['t-23'], areas: ['area-dining'], pinned: true,
           firstName: 'Sharon', lastName: 'Foster', phone: '17185554667',
           email: 'sharon.foster@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
@@ -335,7 +335,8 @@ class DemoMockInterceptor extends Interceptor {
           occasion: 'BIRTHDAY'),
       _booking(guid: 'res-5', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: _q(now.add(const Duration(minutes: 90))),
-          tables: ['t-23'], areas: ['area-dining'],
+          // 4-top: two 2-tops pushed together (t-1 frees at +55, t-2 at +70)
+          tables: ['t-1', 't-2'], areas: ['area-dining'],
           firstName: 'Sandra', lastName: 'Stewart', phone: '16505551694',
           email: 'sandra.stewart@fakemail.com',
           created: now.subtract(const Duration(days: 1))),
@@ -353,7 +354,7 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 2))),
       _booking(guid: 'res-8', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 135))),
-          tables: ['t-c5'], areas: ['area-dining'],
+          tables: ['t-c5'], areas: ['area-dining'], pinned: true,
           firstName: 'Rebecca', lastName: 'Green', phone: '19425555399',
           email: 'rebecca.green@fakemail.com',
           created: now.subtract(const Duration(days: 5)),
@@ -373,7 +374,7 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 2))),
       _booking(guid: 'res-11', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 180))),
-          tables: ['t-15'], areas: ['area-dining'],   // frees from res-3 at +60+90=+150 ✓
+          tables: ['t-15'], areas: ['area-dining'], pinned: true,   // frees from res-3 at +60+90=+150 ✓
           firstName: 'Lauren', lastName: 'Richardson', phone: '17185550419',
           email: 'lauren.richardson@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
@@ -381,7 +382,8 @@ class DemoMockInterceptor extends Interceptor {
           occasion: 'CELEBRATION'),
       _booking(guid: 'res-12', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: _q(now.add(const Duration(minutes: 210))),
-          tables: ['t-5'], areas: ['area-dining'],    // frees from res-1 at +30+90=+120 ✓
+          // 4-top: t-4 + t-5 pushed. t-4 frees from arr-3 at +110 ✓
+          tables: ['t-4', 't-5'], areas: ['area-dining'], pinned: true,
           firstName: 'Timothy', lastName: 'Long', phone: '16505556561',
           email: 'timothy.long@fakemail.com',
           created: now.subtract(const Duration(days: 1)),
@@ -428,7 +430,7 @@ class DemoMockInterceptor extends Interceptor {
       // ── Tomorrow ──────────────────────────────────────────────────────────
       _booking(guid: 'tmr-1', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 12, 0),
-          tables: ['t-5'], areas: ['area-dining'],
+          tables: ['t-4', 't-5'], areas: ['area-dining'],
           firstName: 'Janice', lastName: 'Hill', phone: '16505557206',
           email: 'janice.hill@fakemail.com',
           created: now.subtract(const Duration(days: 7))),
@@ -501,19 +503,20 @@ class DemoMockInterceptor extends Interceptor {
           notes: "We're visiting from out of town and looking for a truly memorable dining experience."),
       _booking(guid: 'tmr-13', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 18, 0),
-          tables: ['t-21'], areas: ['area-dining'],
+          // 4-top: t-4 + t-5 pushed (tmr-1 ends 13:30, tmr-8 on t-5 ends 17:00 ✓)
+          tables: ['t-4', 't-5'], areas: ['area-dining'],
           firstName: 'Frances', lastName: 'Jackson', phone: '19425554644',
           email: 'frances.jackson@fakemail.com',
           created: now.subtract(const Duration(days: 3))),
       _booking(guid: 'tmr-14', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 18, 30),
-          tables: ['t-22'], areas: ['area-dining'],
+          tables: ['t-1', 't-2'], areas: ['area-dining'], pinned: true,
           firstName: 'Sophia', lastName: 'King', phone: '17185553078',
           email: 'sophia.king@fakemail.com',
           created: now.subtract(const Duration(days: 5))),
       _booking(guid: 'tmr-15', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 10,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 19, 0),
-          tables: ['t-21', 't-22'], areas: ['area-dining'], // large party — two tables combined
+          tables: ['t-21', 't-22'], areas: ['area-dining'], pinned: true, // large party — two tables combined
           firstName: 'Bobby', lastName: 'Peterson', phone: '17185559432',
           email: 'bobby.peterson@fakemail.com',
           created: now.subtract(const Duration(days: 6))),
@@ -857,6 +860,9 @@ class DemoMockInterceptor extends Interceptor {
     // BIRTHDAY | ANNIVERSARY | DATE | BUSINESS | REUNION | CELEBRATION
     String? occasion,
     bool vip = false,
+    // When true, this booking's table assignment is "manually pinned" by the host
+    // (won't auto-reassign). When false, the table was system-suggested.
+    bool pinned = false,
   }) {
     // Default to Dining Room so every reservation shows its area in the list.
     // Patio/other areas must be passed explicitly (non-empty list).
@@ -892,7 +898,14 @@ class DemoMockInterceptor extends Interceptor {
       'bookingNotes': notes,
       'bookingSource': null,
       'bookableId': null,
-      'requestedTable': <String>[],
+      // Toast Tables shows the pushpin icon for manually-assigned (locked) tables.
+      // Best-guess field: when pinned, mirror the assigned tables into requestedTable.
+      // Also set common alternative field names to maximize the chance of triggering
+      // the pin icon regardless of which one the app actually reads.
+      'requestedTable': pinned ? tables : <String>[],
+      'tableAssignmentLocked': pinned,
+      'manuallyAssigned': pinned,
+      'pinnedTables': pinned ? tables : <String>[],
       'paymentConfigType': null,
       'paymentConfigSnapshot': null,
       'arrivedTime': arrivedAt?.toIso8601String(),
@@ -957,31 +970,35 @@ class DemoMockInterceptor extends Interceptor {
   // ── Tables (flat list for GET /tables) ───────────────────────────────────
 
   List<Map<String, dynamic>> _allTables() => [
-        _table('t-1',  name: '1',  top: 70,  left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-2',  name: '2',  top: 70,  left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-3',  name: '3',  top: 70,  left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-4',  name: '4',  top: 70,  left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-5',  name: '5',  top: 70,  left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-11', name: '11', top: 205, left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-12', name: '12', top: 205, left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-13', name: '13', top: 205, left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-        _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
-        _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
-        _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+        // 2-tops (can be pushed together for 4, or 3 together for 6)
+        _table('t-1',  name: '1',  top: 70,  left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-2',  name: '2',  top: 70,  left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-3',  name: '3',  top: 70,  left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-4',  name: '4',  top: 70,  left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-5',  name: '5',  top: 70,  left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-11', name: '11', top: 205, left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-12', name: '12', top: 205, left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-13', name: '13', top: 205, left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
+        // Large round tables (5-6 each)
+        _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 6),
+        _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 6),
+        _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 6),
+        // Counter: 1-tops, max 2 (a couple sitting at adjacent stools)
         _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
         _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
         _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
         _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
         _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
         _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-        _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-        _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-        _table('t-p3', name: 'P3', top: 70,  left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-        _table('t-p4', name: 'P4', top: 240, left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-        _table('t-p5', name: 'P5', top: 240, left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-        _table('t-p6', name: 'P6', top: 240, left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+        // Patio: 3-4 each, can't be pushed together
+        _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-p3', name: 'P3', top: 70,  left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-p4', name: 'P4', top: 240, left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-p5', name: 'P5', top: 240, left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-p6', name: 'P6', top: 240, left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
       ];
 
   // ── Table states (OCCUPIED for seated tables, AVAILABLE for the rest) ─────

@@ -52,7 +52,7 @@ echo "==> Patching flutter_bootstrap.js to mount Flutter inside tablet-frame hos
 # We replace it with the hostElement config so Flutter mounts into #flutter-host (the tablet
 # screen area) rather than the full browser viewport.
 if grep -q '_flutter\.loader\.load()' build/web/flutter_bootstrap.js; then
-  sed -i 's/_flutter\.loader\.load()/_flutter.loader.load({config:{hostElement:document.querySelector("#flutter-host")}})/g' build/web/flutter_bootstrap.js
+  sed -i 's/_flutter\.loader\.load()/_flutter.loader.load({onEntrypointLoaded:async function(e){var a=await e.initializeEngine({hostElement:document.querySelector("#flutter-host")});await a.runApp();}})/g' build/web/flutter_bootstrap.js
   echo "    OK — hostElement config injected."
 else
   echo "    WARNING: expected pattern not found; trying legacy onEntrypointLoaded form..."
@@ -76,5 +76,9 @@ fi
 
 echo "==> Patching login button text for demo..."
 sed -i 's/Login with your Toast account/Start Demo/g' build/web/main.dart.js
+
+echo "==> Patching 'Trouble logging in?' link to 'Learn More' + new URL..."
+sed -i 's/Trouble logging in?/Learn More/g' build/web/main.dart.js
+sed -i 's|https://support.toasttab.com/en/article/Get-Help-with-Toast-Tables-Issues-Logging-in-to-the-Toast-Tables-App|https://pos.toasttab.com/products/toast-tables?srsltid=AfmBOoprX-L7Kv3iGlHQ8fyY4HBw61BFTEzDEiOD-l240sIyku9QG7Pz|g' build/web/main.dart.js
 
 echo "==> Done. Output: _capman_host/build/web/"
