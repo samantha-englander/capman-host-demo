@@ -28,6 +28,7 @@ class DemoMockInterceptor extends Interceptor {
     }
     final method = options.method.toUpperCase();
     final path = options.uri.path;
+    final query = options.uri.queryParameters;
     // ignore: avoid_print
     print('[DEMO] $method $path');
 
@@ -45,7 +46,7 @@ class DemoMockInterceptor extends Interceptor {
 
     handler.resolve(Response(
       requestOptions: options,
-      data: _respond(method, path),
+      data: _respond(method, path, query),
       statusCode: 200,
       statusMessage: 'OK',
     ));
@@ -114,7 +115,7 @@ class DemoMockInterceptor extends Interceptor {
     }
   }
 
-  dynamic _respond(String method, String path) {
+  dynamic _respond(String method, String path, Map<String, String> query) {
     // Auth
     if (path.contains('oauth/token')) return _authToken();
     // devices/tables must come before generic device check — returns AuthToken shape
@@ -207,19 +208,17 @@ class DemoMockInterceptor extends Interceptor {
           'message': null,
           'results': <dynamic>[],
         };
-    // Waitlist wait-time estimate — parsed via parseJsonList<WaitInfoDto>,
-    // so the response MUST be a {results: [...]} envelope. Was returning a
-    // bare object, which crashed the "Add to waitlist" preview.
-    if (path.contains('previewEstimate')) return {
-          'results': [
-            {
-              'estimatedWaitMinutes': 15,
-              'minWaitMinutes': 10,
-              'maxWaitMinutes': 25,
-              'partySize': 2,
-            },
-          ],
-        };
+    // Waitlist wait-time estimate — parsed via parseJsonList<WaitInfoDto>.
+    // Real DTO from source:
+    //   WaitInfoDto {totalPartiesAhead, totalPartiesWaiting, partiesAheadByArea}
+    //   ServiceAreaInfoDto {partiesAhead, serviceAreaGroup, minutes,
+    //                       estimatedLowerBound, estimatedUpperBound}
+    // Compute the estimate from current restaurant state so the picker
+    // reflects what's actually happening on the floor.
+    if (path.contains('previewEstimate')) {
+      final partySize = int.tryParse(query['partySize'] ?? '') ?? 2;
+      return {'results': [_smartWaitEstimate(partySize)]};
+    }
 
     // Ticketed events — parsed via parseRawJsonList (raw array, no envelope).
     if (method == 'GET' && path.contains('event-showings')) return <dynamic>[];
@@ -1135,6 +1134,84 @@ class DemoMockInterceptor extends Interceptor {
       },
       'createdDate': created.toIso8601String(),
       'modifiedDate': created.toIso8601String(),
+    };
+  }
+
+  // ── Smart waitlist estimate ─────────────────────────────────────────────
+  //
+  // For the requested party size, find the SEATED party whose 90-min turn
+  // ends soonest on a table that fits → that's the wait time in minutes.
+  // If no seated parties fit, fall back to a "next available table opens
+  // shortly" estimate so the UI still has something to show.
+
+  Map<String, dynamic> _smartWaitEstimate(int partySize) {
+    final now = DateTime.now();
+    final tablesByGuid = {
+      for (final t in _allTables()) t['guid'] as String: t,
+    };
+
+    int? diningMinutes;
+    int? patioMinutes;
+    int totalSeated = 0;
+
+    for (final b in _bookings()) {
+      final status = b['bookingStatus'] as String?;
+      if (status != 'R_SEATED' && status != 'W_SEATED') continue;
+      totalSeated++;
+
+      // Effective seat time = actualStartTime ?? expectedStartTime.
+      final startIso = (b['actualStartTime'] as String?)
+          ?? (b['expectedStartTime'] as String?);
+      if (startIso == null) continue;
+      final seatedAt = DateTime.tryParse(startIso);
+      if (seatedAt == null) continue;
+      // 90 min turn time (matches our turn-time used elsewhere).
+      final freeAt = seatedAt.add(const Duration(minutes: 90));
+      var remaining = freeAt.difference(now).inMinutes;
+      if (remaining < 1) remaining = 1;
+
+      final guids = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
+      for (final g in guids) {
+        final t = tablesByGuid[g];
+        if (t == null) continue;
+        final maxCap = (t['maxCapacity'] as int?) ?? 0;
+        if (maxCap < partySize) continue;
+        final isPatio = g.startsWith('t-p');
+        if (isPatio) {
+          if (patioMinutes == null || remaining < patioMinutes) {
+            patioMinutes = remaining;
+          }
+        } else {
+          if (diningMinutes == null || remaining < diningMinutes) {
+            diningMinutes = remaining;
+          }
+        }
+      }
+    }
+
+    // How many waitlist parties are ahead (currently W_WAITING / W_NOTIFIED).
+    int waiting = 0;
+    for (final b in _bookings()) {
+      final s = b['bookingStatus'] as String?;
+      if (s == 'W_WAITING' || s == 'W_NOTIFIED') waiting++;
+    }
+
+    Map<String, dynamic> areaInfo(String groupGuid, int? minutes) => {
+      'partiesAhead': waiting,
+      'serviceAreaGroup': groupGuid,
+      'minutes': minutes ?? 0,
+      'estimatedLowerBound':
+          minutes == null ? 0 : (minutes - 5).clamp(0, 1 << 31),
+      'estimatedUpperBound': minutes == null ? 5 : minutes + 5,
+    };
+
+    return {
+      'totalPartiesAhead': waiting,
+      'totalPartiesWaiting': waiting,
+      'partiesAheadByArea': [
+        areaInfo('area-dining', diningMinutes),
+        areaInfo('area-patio', patioMinutes),
+      ],
     };
   }
 
