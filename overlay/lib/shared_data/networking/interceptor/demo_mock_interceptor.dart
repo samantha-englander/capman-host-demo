@@ -1830,18 +1830,25 @@ class DemoMockInterceptor extends Interceptor {
         _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
         _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
         // Large round tables (5-6 each)
+        // Rounds: left of t-21 aligns with left of t-1/t-11 (25); right of
+        // t-23 aligns with right of t-5/t-15 (540+95=635 → left 515);
+        // t-22 centered between them.
         _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
-        _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
-        _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
+        _table('t-22', name: '22', top: 360, left: 270, w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
+        _table('t-23', name: '23', top: 360, left: 515, w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
         // Counter: strictly 1-top per single stool. Couples (party of 2)
         // must occupy a pair of adjacent stools — the smart algorithm
         // generates those combos in _candidateCombos.
-        _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
-        _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
-        _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
-        _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
-        _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
-        _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        // Counter: evenly spaced vertically across the Counter block
+        // (border-counter top=55, h=545 → bottom=600). C1 top=55 aligns with
+        // the top of the block; C6 top=540 (+60 height = 600) aligns with
+        // the bottom. Step = (540-55)/5 = 97.
+        _table('t-c1', name: 'C1', top: 55,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c2', name: 'C2', top: 152, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c3', name: 'C3', top: 249, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c4', name: 'C4', top: 346, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c5', name: 'C5', top: 443, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c6', name: 'C6', top: 540, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
         // Patio: 3-4 each, can't be pushed together
         _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
         _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
