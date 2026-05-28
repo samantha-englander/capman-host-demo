@@ -47,7 +47,7 @@ abstract class AppConfigModule {
   AppConfigState provideDemo(AppInfo appInfo) => AppConfigState(
     isProduction: false,
     isStaging: false,
-    debugFeaturesEnabled: true,
+    debugFeaturesEnabled: false,
     appVersion: appInfo.version.toString(),
   );
 }

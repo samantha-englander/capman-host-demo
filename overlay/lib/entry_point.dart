@@ -275,7 +275,7 @@ Future<Widget> appWrapper(final Env environment) async {
             combinedViewConfigureFlow,
             combinedViewSettingsTutorialFlow,
           ],
-          highlightsEnabled: environment != Env.TEST,
+          highlightsEnabled: environment != Env.TEST && environment != Env.DEMO,
         ),
       ),
       BlocProvider<DrawerBloc>(

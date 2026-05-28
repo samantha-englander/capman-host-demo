@@ -6,10 +6,11 @@ import 'package:injectable/injectable.dart';
 class DemoMockInterceptor extends Interceptor {
   final bool _isDemo;
 
+  // In demo environment isProduction=false and isStaging=false — that's the
+  // sole condition. debugFeaturesEnabled is intentionally false for demo so
+  // the debug menu doesn't surface, so we can't use it as a gate here.
   DemoMockInterceptor(AppConfigState config)
-      : _isDemo = config.debugFeaturesEnabled &&
-            !config.isProduction &&
-            !config.isStaging;
+      : _isDemo = !config.isProduction && !config.isStaging;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -134,44 +135,43 @@ class DemoMockInterceptor extends Interceptor {
   // ── Service Area Geometries ───────────────────────────────────────────────
   // Matches real floor plan: Dining Room (1–5, 11–15, 21–23, C1–C6, Counter)
   // and Patio (P1–P6).
-  // Shape fields: guid, label, top, left, width, height, type
-  // type = 'BOX' (table), 'BORDER' (wall/outline), 'LABEL' (text)
-  // tables list = GUIDs of BOX shapes only
+  //
+  // tables: List<TableServer> — full objects with name, guid, position, type
+  //   (SQUARE / CIRCLE / DIAMOND), and capacity. Used by the app to render
+  //   table entities and link to bookings.
+  // shapes: List<ServiceAreaShapeServer> — structural elements only
+  //   (BORDER = walls/outlines, LABEL = text). Tables are NOT included here.
 
   List<Map<String, dynamic>> _serviceAreaGeometries() => [
         {
           'guid': 'area-dining',
           'name': 'Dining Room',
           'tables': [
-            't-1', 't-2', 't-3', 't-4', 't-5',
-            't-11', 't-12', 't-13', 't-14', 't-15',
-            't-21', 't-22', 't-23',
-            't-c1', 't-c2', 't-c3', 't-c4', 't-c5', 't-c6',
+            // ── Row 1: Tables 1–5 ──
+            _table('t-1',  name: '1',  top: 70,  left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-2',  name: '2',  top: 70,  left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-3',  name: '3',  top: 70,  left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-4',  name: '4',  top: 70,  left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-5',  name: '5',  top: 70,  left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            // ── Row 2: Tables 11–15 ──
+            _table('t-11', name: '11', top: 205, left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-12', name: '12', top: 205, left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-13', name: '13', top: 205, left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+            // ── Row 3: Tables 21–23 (large round) ──
+            _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+            _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+            _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+            // ── Counter seats C1–C6 ──
+            _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+            _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+            _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+            _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+            _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+            _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
           ],
           'shapes': [
-            // ── Row 1: Tables 1–5 (square) ──
-            _box('t-1',  label: '1',  top: 70,  left: 25,  w: 95, h: 95),
-            _box('t-2',  label: '2',  top: 70,  left: 155, w: 95, h: 95),
-            _box('t-3',  label: '3',  top: 70,  left: 285, w: 95, h: 95),
-            _box('t-4',  label: '4',  top: 70,  left: 415, w: 95, h: 95),
-            _box('t-5',  label: '5',  top: 70,  left: 540, w: 95, h: 95),
-            // ── Row 2: Tables 11–15 (square) ──
-            _box('t-11', label: '11', top: 205, left: 25,  w: 95, h: 95),
-            _box('t-12', label: '12', top: 205, left: 155, w: 95, h: 95),
-            _box('t-13', label: '13', top: 205, left: 285, w: 95, h: 95),
-            _box('t-14', label: '14', top: 205, left: 415, w: 95, h: 95),
-            _box('t-15', label: '15', top: 205, left: 540, w: 95, h: 95),
-            // ── Row 3: Tables 21–23 (large round rendered as BOX) ──
-            _box('t-21', label: '21', top: 360, left: 25,  w: 120, h: 120),
-            _box('t-22', label: '22', top: 360, left: 180, w: 120, h: 120),
-            _box('t-23', label: '23', top: 360, left: 540, w: 120, h: 120),
-            // ── Counter seats C1–C6 (small) ──
-            _box('t-c1', label: 'C1', top: 70,  left: 745, w: 60, h: 60),
-            _box('t-c2', label: 'C2', top: 160, left: 745, w: 60, h: 60),
-            _box('t-c3', label: 'C3', top: 250, left: 745, w: 60, h: 60),
-            _box('t-c4', label: 'C4', top: 365, left: 745, w: 60, h: 60),
-            _box('t-c5', label: 'C5', top: 450, left: 745, w: 60, h: 60),
-            _box('t-c6', label: 'C6', top: 535, left: 745, w: 60, h: 60),
             // ── Counter wall border ──
             _shape('border-counter', top: 55,  left: 828, w: 130, h: 545, type: 'BORDER'),
             // ── Counter label ──
@@ -181,27 +181,34 @@ class DemoMockInterceptor extends Interceptor {
         {
           'guid': 'area-patio',
           'name': 'Patio',
-          'tables': ['t-p1', 't-p2', 't-p3', 't-p4', 't-p5', 't-p6'],
-          'shapes': [
+          'tables': [
             // ── Row 1: P1–P3 ──
-            _box('t-p1', label: 'P1', top: 70,  left: 30,  w: 120, h: 120),
-            _box('t-p2', label: 'P2', top: 70,  left: 200, w: 120, h: 120),
-            _box('t-p3', label: 'P3', top: 70,  left: 370, w: 120, h: 120),
+            _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+            _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+            _table('t-p3', name: 'P3', top: 70,  left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
             // ── Row 2: P4–P6 ──
-            _box('t-p4', label: 'P4', top: 240, left: 30,  w: 120, h: 120),
-            _box('t-p5', label: 'P5', top: 240, left: 200, w: 120, h: 120),
-            _box('t-p6', label: 'P6', top: 240, left: 370, w: 120, h: 120),
+            _table('t-p4', name: 'P4', top: 240, left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+            _table('t-p5', name: 'P5', top: 240, left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+            _table('t-p6', name: 'P6', top: 240, left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
           ],
+          'shapes': [],
         },
       ];
 
-  Map<String, dynamic> _box(String guid, {required String label, required int top, required int left, required int w, required int h}) =>
-      {'guid': guid, 'label': label, 'top': top, 'left': left, 'width': w, 'height': h, 'type': 'BOX'};
+  Map<String, dynamic> _table(String guid, {required String name, required int top, required int left, required int w, required int h, required String type, required int minCap, required int maxCap}) =>
+      {'guid': guid, 'name': name, 'top': top, 'left': left, 'width': w, 'height': h, 'type': type, 'minCapacity': minCap, 'maxCapacity': maxCap};
 
   Map<String, dynamic> _shape(String guid, {String? label, required int top, required int left, required int w, required int h, required String type}) =>
       {'guid': guid, 'label': label, 'top': top, 'left': left, 'width': w, 'height': h, 'type': type};
 
   // ── Bookings ──────────────────────────────────────────────────────────────
+
+  static const _firstNames = [
+    'Michael', 'Sarah', 'David', 'Jennifer', 'James', 'Lisa',
+    'Robert', 'Emily', 'Daniel', 'Ashley', 'Matthew', 'Jessica',
+    'Christopher', 'Amanda', 'Andrew', 'Stephanie', 'Joshua', 'Nicole',
+    'Kevin', 'Hannah', 'Brian', 'Megan', 'Scott', 'Rachel',
+  ];
 
   List<Map<String, dynamic>> _bookings() {
     final now = DateTime.now();
@@ -219,16 +226,17 @@ class DemoMockInterceptor extends Interceptor {
       _booking(guid: 'res-9',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 4, expectedStartTime: now.subtract(const Duration(minutes: 30)), tables: ['t-p2'], serviceAreas: ['area-patio'],  guestLastName: 'Anderson', guestIndex: 8,  createdAt: now.subtract(const Duration(hours: 2))),
     ];
 
-    // Upcoming confirmed reservations
+    // Upcoming — mix of R_ARRIVED (on-site, awaiting table) and R_CONFIRMED
+    // Some have pre-assigned tables (host has already assigned them a spot)
     final upcoming = [
-      _booking(guid: 'res-10', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 10)),  tables: [], serviceAreas: [], guestLastName: 'Taylor',   guestIndex: 9,  createdAt: now.subtract(const Duration(days: 1))),
-      _booking(guid: 'res-11', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 20)),  tables: [], serviceAreas: [], guestLastName: 'Thomas',   guestIndex: 10, createdAt: now.subtract(const Duration(days: 2))),
-      _booking(guid: 'res-12', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 5, expectedStartTime: now.add(const Duration(minutes: 25)),  tables: [], serviceAreas: [], guestLastName: 'Jackson',  guestIndex: 11, createdAt: now.subtract(const Duration(hours: 6))),
-      _booking(guid: 'res-13', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 3, expectedStartTime: now.add(const Duration(minutes: 35)),  tables: [], serviceAreas: [], guestLastName: 'White',    guestIndex: 12, createdAt: now.subtract(const Duration(days: 3))),
-      _booking(guid: 'res-14', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 6, expectedStartTime: now.add(const Duration(minutes: 45)),  tables: [], serviceAreas: [], guestLastName: 'Harris',   guestIndex: 13, createdAt: now.subtract(const Duration(days: 1))),
-      _booking(guid: 'res-15', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 60)),  tables: [], serviceAreas: [], guestLastName: 'Lewis',    guestIndex: 14, createdAt: now.subtract(const Duration(days: 4))),
-      _booking(guid: 'res-16', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 75)),  tables: [], serviceAreas: [], guestLastName: 'Robinson', guestIndex: 15, createdAt: now.subtract(const Duration(days: 2))),
-      _booking(guid: 'res-17', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 90)),  tables: [], serviceAreas: [], guestLastName: 'Clark',    guestIndex: 16, createdAt: now.subtract(const Duration(days: 1))),
+      _booking(guid: 'res-10', bookingType: 'RESERVATION', bookingStatus: 'R_ARRIVED',   partySize: 4, expectedStartTime: now.add(const Duration(minutes: 10)),  tables: ['t-3'],  serviceAreas: ['area-dining'], guestLastName: 'Taylor',   guestIndex: 9,  createdAt: now.subtract(const Duration(days: 1)),  arrivedTime: now.subtract(const Duration(minutes: 3))),
+      _booking(guid: 'res-11', bookingType: 'RESERVATION', bookingStatus: 'R_ARRIVED',   partySize: 2, expectedStartTime: now.add(const Duration(minutes: 20)),  tables: [],       serviceAreas: [],              guestLastName: 'Thomas',   guestIndex: 10, createdAt: now.subtract(const Duration(days: 2)),  arrivedTime: now.subtract(const Duration(minutes: 6))),
+      _booking(guid: 'res-12', bookingType: 'RESERVATION', bookingStatus: 'R_ARRIVED',   partySize: 3, expectedStartTime: now.add(const Duration(minutes: 25)),  tables: ['t-4'],  serviceAreas: ['area-dining'], guestLastName: 'Jackson',  guestIndex: 11, createdAt: now.subtract(const Duration(hours: 6)),  arrivedTime: now.subtract(const Duration(minutes: 1))),
+      _booking(guid: 'res-13', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 3, expectedStartTime: now.add(const Duration(minutes: 35)),  tables: [],       serviceAreas: [],              guestLastName: 'White',    guestIndex: 12, createdAt: now.subtract(const Duration(days: 3))),
+      _booking(guid: 'res-14', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 6, expectedStartTime: now.add(const Duration(minutes: 45)),  tables: ['t-23'], serviceAreas: ['area-dining'], guestLastName: 'Harris',   guestIndex: 13, createdAt: now.subtract(const Duration(days: 1))),
+      _booking(guid: 'res-15', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 60)),  tables: [],       serviceAreas: [],              guestLastName: 'Lewis',    guestIndex: 14, createdAt: now.subtract(const Duration(days: 4))),
+      _booking(guid: 'res-16', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 75)),  tables: [],       serviceAreas: [],              guestLastName: 'Robinson', guestIndex: 15, createdAt: now.subtract(const Duration(days: 2))),
+      _booking(guid: 'res-17', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 90)),  tables: [],       serviceAreas: [],              guestLastName: 'Clark',    guestIndex: 16, createdAt: now.subtract(const Duration(days: 1))),
     ];
 
     // Waitlist
@@ -255,50 +263,53 @@ class DemoMockInterceptor extends Interceptor {
     required int guestIndex,
     required DateTime createdAt,
     String? visitNotes,
-  }) =>
-      {
-        'guid': guid,
-        'bookingType': bookingType,
-        'bookingStatus': bookingStatus,
-        'partySize': partySize,
-        'expectedStartTime': expectedStartTime.toIso8601String(),
-        'expectedEndTime': expectedStartTime.add(const Duration(minutes: 90)).toIso8601String(),
-        'actualStartTime': tables.isNotEmpty ? expectedStartTime.toIso8601String() : null,
-        'actualEndTime': null,
-        'tables': tables,
-        'serviceAreas': serviceAreas,
-        'serviceAreaGroup': null,
-        'requestedServiceAreaGroups': <String>[],
-        'server': null,
-        'firstNotified': null,
-        'lastNotified': null,
-        'notificationCount': 0,
-        'cancelledTime': null,
-        'dismissToHistory': false,
-        'cancellationSource': null,
-        'depositOrderId': null,
-        'paymentStatus': null,
-        'depositPaymentExpirationDatetime': null,
-        'depositRefundableCancellationDatetime': null,
-        'depositAmount': null,
-        'visitNotes': visitNotes,
-        'bookingNotes': null,
-        'bookingSource': null,
-        'bookableId': null,
-        'requestedTable': <String>[],
-        'paymentConfigType': null,
-        'paymentConfigSnapshot': null,
-        'arrivedTime': null,
-        'toastPayEnabled': null,
-        'paymentMandateId': null,
-        'guest': {
-          'guid': 'guest-$guestIndex',
-          'firstName': '',
-          'lastName': guestLastName,
-          'phone': '617-555-0${guestIndex.toString().padLeft(3, '0')}',
-          'email': null,
-        },
-        'createdDate': createdAt.toIso8601String(),
-        'modifiedDate': createdAt.toIso8601String(),
-      };
+    DateTime? arrivedTime,
+  }) {
+    final firstName = guestIndex < _firstNames.length ? _firstNames[guestIndex] : '';
+    return {
+      'guid': guid,
+      'bookingType': bookingType,
+      'bookingStatus': bookingStatus,
+      'partySize': partySize,
+      'expectedStartTime': expectedStartTime.toIso8601String(),
+      'expectedEndTime': expectedStartTime.add(const Duration(minutes: 90)).toIso8601String(),
+      'actualStartTime': bookingStatus == 'R_SEATED' ? expectedStartTime.toIso8601String() : null,
+      'actualEndTime': null,
+      'tables': tables,
+      'serviceAreas': serviceAreas,
+      'serviceAreaGroup': null,
+      'requestedServiceAreaGroups': <String>[],
+      'server': null,
+      'firstNotified': null,
+      'lastNotified': null,
+      'notificationCount': 0,
+      'cancelledTime': null,
+      'dismissToHistory': false,
+      'cancellationSource': null,
+      'depositOrderId': null,
+      'paymentStatus': null,
+      'depositPaymentExpirationDatetime': null,
+      'depositRefundableCancellationDatetime': null,
+      'depositAmount': null,
+      'visitNotes': visitNotes,
+      'bookingNotes': null,
+      'bookingSource': null,
+      'bookableId': null,
+      'requestedTable': <String>[],
+      'paymentConfigType': null,
+      'paymentConfigSnapshot': null,
+      'arrivedTime': arrivedTime?.toIso8601String(),
+      'toastPayEnabled': null,
+      'paymentMandateId': null,
+      'guest': {
+        'guid': 'guest-$guestIndex',
+        'firstName': firstName,
+        'lastName': guestLastName,
+        'phone': '617-555-0${guestIndex.toString().padLeft(3, '0')}',
+        'email': null,
+      },
+      'createdDate': createdAt.toIso8601String(),
+      'modifiedDate': createdAt.toIso8601String(),
+    };
+  }
 }
