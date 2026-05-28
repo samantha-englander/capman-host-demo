@@ -906,14 +906,11 @@ class DemoMockInterceptor extends Interceptor {
       'bookingNotes': notes,
       'bookingSource': null,
       'bookableId': null,
-      // Toast Tables shows the pushpin icon for manually-assigned (locked) tables.
-      // Best-guess field: when pinned, mirror the assigned tables into requestedTable.
-      // Also set common alternative field names to maximize the chance of triggering
-      // the pin icon regardless of which one the app actually reads.
+      // Verified against BookingDto source: `requestedTable` is the real field
+      // backing the pushpin icon. When the host manually assigns a table, the
+      // app populates requestedTable with the chosen table guids — that signals
+      // "don't auto-reassign this." When empty, the assignment was system-chosen.
       'requestedTable': pinned ? tables : <String>[],
-      'tableAssignmentLocked': pinned,
-      'manuallyAssigned': pinned,
-      'pinnedTables': pinned ? tables : <String>[],
       'paymentConfigType': null,
       'paymentConfigSnapshot': null,
       'arrivedTime': arrivedAt?.toIso8601String(),
