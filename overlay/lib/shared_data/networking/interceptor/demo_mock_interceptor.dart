@@ -13,6 +13,11 @@ class DemoMockInterceptor extends Interceptor {
   final Map<String, String> _statusOverrides = {};        // booking guid → status
   final Map<String, DateTime> _notifyTimes = {};          // booking guid → firstNotified
   final Map<String, String> _tableStateOverrides = {};    // table guid → state
+  // Bookings created mid-session via POST /booking/{waitlist,reservation}.
+  // Stored here so they show up in subsequent GETs (booking list, floor plan,
+  // smart-wait math) AND echoed back on the create call so the UI can navigate
+  // into the new row. Cleared on page reload along with everything else.
+  final List<Map<String, dynamic>> _extraBookings = [];
 
   // In demo environment isProduction=false and isStaging=false — that's the
   // sole condition. debugFeaturesEnabled is intentionally false for demo so
@@ -39,6 +44,11 @@ class DemoMockInterceptor extends Interceptor {
     }
     if (method == 'POST' && path.endsWith('/booking/notify')) {
       _captureNotify(options.data);
+    }
+    if (method == 'POST' &&
+        (path.endsWith('/booking/waitlist') ||
+         path.endsWith('/booking/reservation'))) {
+      _captureNewBooking(path, options.data);
     }
     if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
       _captureTableState(path, options.data);
@@ -115,6 +125,103 @@ class DemoMockInterceptor extends Interceptor {
     _notifyTimes[guid] = DateTime.now();
   }
 
+  /// Create-booking endpoints (POST /booking/waitlist | /booking/reservation).
+  /// Body shapes verified from NewWaitListBody / NewReservationBody DTOs:
+  ///   waitlist:    {partySize, serviceAreaGuids, dateTime, bookingNotes,
+  ///                 specialOccasion, guest, sendText, visitNotes}
+  ///   reservation: same + {tableGuids, endTime, deposit, bookableId}
+  /// Without this, the POST handler returned `{results: []}` — the create
+  /// sheet saw zero new bookings come back and surfaced "something went wrong"
+  /// (or silently failed and the row never appeared in the list).
+  void _captureNewBooking(String path, dynamic body) {
+    if (body is! Map) return;
+    final isWaitlist = path.endsWith('/waitlist');
+    final guid = 'demo-${DateTime.now().microsecondsSinceEpoch}';
+    final partySize = (body['partySize'] as int?) ?? 2;
+    final tables = ((body['tableGuids'] as List?) ?? const [])
+        .whereType<String>()
+        .toList();
+    final areas = ((body['serviceAreaGuids'] as List?) ?? const [])
+        .whereType<String>()
+        .toList();
+    final notes = (body['bookingNotes'] as String?) ??
+        (body['visitNotes'] as String?) ?? '';
+    final occasion = body['specialOccasion'] as String?;
+    final guestGuid = (body['guest'] as String?) ?? 'g-walk-in';
+
+    DateTime start;
+    final dt = body['dateTime'];
+    if (dt is String && dt.isNotEmpty) {
+      start = DateTime.tryParse(dt) ?? DateTime.now();
+    } else {
+      start = DateTime.now();
+    }
+
+    // Try to find a real guest record so name/phone render in the list.
+    Map<String, dynamic>? guestRec;
+    for (final g in _guests()) {
+      if (g['guid'] == guestGuid) { guestRec = g; break; }
+    }
+    final guestObj = guestRec ??
+        <String, dynamic>{
+          'guid': guestGuid,
+          'firstName': 'Walk-In',
+          'lastName': 'Guest',
+          'phoneNumber': '',
+          'email': null,
+          'bookingCount': 0,
+          'guestNotes': null,
+          'guestTags': <String>[],
+          'guestbookTagIds': <String>[],
+          'vipStatus': false,
+          'guestbookGuid': null,
+          'guestProfilesGuid': null,
+        };
+
+    final now = DateTime.now();
+    final newBooking = <String, dynamic>{
+      'guid': guid,
+      'bookingType': isWaitlist ? 'WAITLIST' : 'RESERVATION',
+      'bookingStatus': isWaitlist ? 'W_WAITING' : 'R_CONFIRMED',
+      'partySize': partySize,
+      'expectedStartTime': start.toIso8601String(),
+      'expectedEndTime': start.add(const Duration(minutes: 90)).toIso8601String(),
+      'actualStartTime': null,
+      'actualEndTime': null,
+      'tables': tables,
+      'serviceAreas': areas.isEmpty ? <String>['area-dining'] : areas,
+      'serviceAreaGroup': null,
+      'requestedServiceAreaGroups': <String>[],
+      'server': null,
+      'firstNotified': null,
+      'lastNotified': null,
+      'notificationCount': 0,
+      'cancelledTime': null,
+      'dismissToHistory': false,
+      'cancellationSource': null,
+      'depositOrderId': null,
+      'paymentStatus': null,
+      'depositPaymentExpirationDatetime': null,
+      'depositRefundableCancellationDatetime': null,
+      'depositAmount': null,
+      'visitNotes': notes.isEmpty ? null : notes,
+      'bookingNotes': notes.isEmpty ? null : notes,
+      'bookingSource': null,
+      'bookableId': body['bookableId'],
+      'requestedTable': tables,  // host-assigned at create time
+      'paymentConfigType': null,
+      'paymentConfigSnapshot': null,
+      'arrivedTime': null,
+      'toastPayEnabled': null,
+      'paymentMandateId': null,
+      'specialOccasion': occasion,
+      'guest': guestObj,
+      'createdDate': now.toIso8601String(),
+      'modifiedDate': now.toIso8601String(),
+    };
+    _extraBookings.add(newBooking);
+  }
+
   /// Table state body is typically {tableGuids: [...]}. /dirty marks tables
   /// DIRTY; /makeAvailable marks them AVAILABLE. Apply override so the next
   /// /tableStates poll reflects the change on the floor plan.
@@ -170,6 +277,14 @@ class DemoMockInterceptor extends Interceptor {
       if (!isSeated) return {'results': <dynamic>[]};
       final partySize = (booking?['partySize'] as int?) ?? 2;
       return {'results': [_orderPriceSummary(guid, partySize)]};
+    }
+    // Create endpoints — the new booking was synthesized in onRequest and
+    // pushed to _extraBookings. Echo it back so the create sheet completes.
+    if (method == 'POST' &&
+        (path.endsWith('/booking/waitlist') ||
+         path.endsWith('/booking/reservation'))) {
+      if (_extraBookings.isEmpty) return {'results': <dynamic>[]};
+      return {'results': [_extraBookings.last]};
     }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     if (method == 'PATCH' && path.contains('/booking/')) {
@@ -826,6 +941,10 @@ class DemoMockInterceptor extends Interceptor {
           email: 'natalie.gonzales@fakemail.com',
           created: now.subtract(const Duration(minutes: 1))),
     ];
+
+    // Merge in any bookings created mid-session via POST /booking/waitlist
+    // or /booking/reservation. Stored as already-built DTOs in _extraBookings.
+    list.addAll(_extraBookings);
 
     // Apply session status overrides set by PATCH endpoints. This is what
     // makes status changes (e.g. Confirmed → Arrived) actually stick in the
