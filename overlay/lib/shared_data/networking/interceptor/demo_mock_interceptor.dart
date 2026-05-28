@@ -104,14 +104,30 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'GET' && path.endsWith('/bookings')) return {'results': _bookings()};
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     if (method == 'PATCH' && path.contains('/booking/')) {
-      // Return the matching booking so the app can refresh its local state.
-      // Without this, the app sees an empty results list and shows "Something went wrong."
       final guid = path.split('/booking/').last.split('/').first;
       final all = _bookings();
       Map<String, dynamic>? found;
       for (final b in all) {
         if ((b['guid'] as String?) == guid) { found = b; break; }
       }
+      // Seat-action endpoints (seatV2, unseatV2, moveV2, serverV2) parse the
+      // response as List<SeatActionDto>, NOT List<BookingDto>. SeatActionDto
+      // shape: {order: OrderDto?, booking: BookingDto}. Wrap accordingly so
+      // floor-plan drag-and-drop, "Seat Party", "Move Table", and "Change
+      // Server" actions don't throw "Something went wrong."
+      final isSeatAction = path.endsWith('/seatV2')
+          || path.endsWith('/unseatV2')
+          || path.endsWith('/moveV2')
+          || path.endsWith('/serverV2');
+      if (isSeatAction) {
+        return {
+          'results': found != null
+              ? [{'order': null, 'booking': found}]
+              : <dynamic>[],
+        };
+      }
+      // All other booking PATCHes (statusV2, confirmV2, noShowV2, cancel,
+      // reservation, waitlist, leftBuilding) parse as List<BookingDto>.
       return {'results': found != null ? [found] : <dynamic>[]};
     }
     if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
@@ -119,17 +135,28 @@ class DemoMockInterceptor extends Interceptor {
     // Blocks / orders / other booking endpoints that crash parseJsonList when unhandled
     if (method == 'GET' && path.contains('/app/blocks')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
+    // Order completion / linking — parsed as List<OrderDto>. Empty results is safe.
+    if (method == 'PATCH' && path.contains('/orders/')) return {'results': <dynamic>[]};
 
     // Create-reservation flow — availabilities time picker + per-date config
     if (method == 'GET' && path.contains('availabilitiesV2')) return {'results': _availabilities()};
     if (method == 'GET' && path.contains('configInfo')) return _configInfo();
-    // Waitlist wait-time estimate (called when adding a party to the waitlist)
+    // Waitlist wait-time estimate — parsed via parseJsonList<WaitInfoDto>,
+    // so the response MUST be a {results: [...]} envelope. Was returning a
+    // bare object, which crashed the "Add to waitlist" preview.
     if (path.contains('previewEstimate')) return {
-          'estimatedWaitMinutes': 15,
-          'minWaitMinutes': 10,
-          'maxWaitMinutes': 25,
-          'partySize': 2,
+          'results': [
+            {
+              'estimatedWaitMinutes': 15,
+              'minWaitMinutes': 10,
+              'maxWaitMinutes': 25,
+              'partySize': 2,
+            },
+          ],
         };
+
+    // Ticketed events — parsed via parseRawJsonList (raw array, no envelope).
+    if (method == 'GET' && path.contains('event-showings')) return <dynamic>[];
 
     // Roster — parseJsonList → {"results": [...]}
     if (method == 'GET' && path.contains('serverAssignment')) return {'results': _serverAssignments()};
@@ -142,7 +169,14 @@ class DemoMockInterceptor extends Interceptor {
           'serverAssignments': _serverAssignments(),
         };
     if (method == 'GET' && path.contains('shiftCutoff')) return {'results': <dynamic>[]};
+    // listColors must match BEFORE the generic 'employee' branch, otherwise
+    // the server-color picker tries to parse employees as ServerColorNetworking.
+    if (method == 'GET' && path.contains('listColors')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('employee')) return {'results': _employees()};
+    // Manager passcode auth: POST /booking/v2/app/employee with passcode.
+    // Returns List<EmployeeDto> — accept any passcode by returning the
+    // first on-roster employee so override prompts complete.
+    if (method == 'POST' && path.contains('employee')) return {'results': [_employees().first]};
     // Server-rotation / table-assignment feature: section, coverage, rotation endpoints
     if (method == 'GET' && path.contains('section')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('coverage')) return {'results': <dynamic>[]};
@@ -153,6 +187,14 @@ class DemoMockInterceptor extends Interceptor {
     // Guest tags (needed for tag icons in reservation list)
     if (method == 'GET' && path.contains('guestTags')) return {'results': _guestTags()};
 
+    // Guest search — the "Add Reservation" flow searches guests by name or
+    // phone via querySearch / guestSearch endpoints. Without explicit matches
+    // these fall through to the empty fallback, so the guest picker shows
+    // "no results" no matter what. Return the full guestbook so any query
+    // surfaces matches (the app does its own client-side filtering).
+    if (method == 'GET' && (path.contains('querySearch') || path.contains('guestSearch'))) {
+      return {'results': _guests()};
+    }
     // Guestbook
     if (method == 'GET' && path.contains('/guests')) return {'results': _guests()};
 
