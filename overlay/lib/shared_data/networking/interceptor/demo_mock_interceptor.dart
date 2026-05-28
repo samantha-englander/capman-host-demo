@@ -169,20 +169,15 @@ class DemoMockInterceptor extends Interceptor {
 
     // POST /booking/notify returns List<BookingDto> (the updated booking with
     // status flipped to W_NOTIFIED / R_NOTIFIED and firstNotified stamped).
-    // _captureNotify already wired the override; just look up the booking.
+    // _captureNotify already wired the override; find the most-recently-
+    // notified booking and return it.
     if (method == 'POST' && path.endsWith('/booking/notify')) {
-      Map<String, dynamic>? found;
-      final body = null; // body already captured; just return updated record
-      // ignore: unused_local_variable
-      final _ = body;
-      // Find whichever booking was just notified (the most recent in the map).
-      if (_notifyTimes.isNotEmpty) {
-        final lastGuid = _notifyTimes.entries.last.key;
-        for (final b in _bookings()) {
-          if (b['guid'] == lastGuid) { found = b; break; }
-        }
+      if (_notifyTimes.isEmpty) return {'results': <dynamic>[]};
+      final lastGuid = _notifyTimes.entries.last.key;
+      for (final b in _bookings()) {
+        if (b['guid'] == lastGuid) return {'results': [b]};
       }
-      return {'results': found != null ? [found] : <dynamic>[]};
+      return {'results': <dynamic>[]};
     }
 
     // PATCH /table/dirty and /table/makeAvailable return List<TableStateDto>.
