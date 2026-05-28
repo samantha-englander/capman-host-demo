@@ -74,6 +74,13 @@ class DemoMockInterceptor extends Interceptor {
     // Create-reservation flow — availabilities time picker + per-date config
     if (method == 'GET' && path.contains('availabilitiesV2')) return {'results': _availabilities()};
     if (method == 'GET' && path.contains('configInfo')) return _configInfo();
+    // Waitlist wait-time estimate (called when adding a party to the waitlist)
+    if (path.contains('previewEstimate')) return {
+          'estimatedWaitMinutes': 15,
+          'minWaitMinutes': 10,
+          'maxWaitMinutes': 25,
+          'partySize': 2,
+        };
 
     // Roster — parseJsonList → {"results": [...]}
     if (method == 'GET' && path.contains('serverAssignment')) return {'results': <dynamic>[]};
@@ -1017,9 +1024,12 @@ class DemoMockInterceptor extends Interceptor {
 
   // ── Employees (demo servers) ──────────────────────────────────────────────
 
+  // Employee guids must be BigInt-parseable — Toast uses long numeric IDs.
+  // Letter prefixes ("emp-1") crash the app's BigInt parser and break the
+  // server roster modal (white box) and the main bootstrap fetch.
   List<Map<String, dynamic>> _employees() => [
         {
-          'guid': 'emp-1',
+          'guid': '1000000000000001',
           'firstName': 'Alex',
           'lastName': 'Rivera',
           'serverColor': {'serverColor': '#E57373', 'textColor': '#FFFFFF'},
@@ -1029,7 +1039,7 @@ class DemoMockInterceptor extends Interceptor {
           'permissions': 'HOST',
         },
         {
-          'guid': 'emp-2',
+          'guid': '1000000000000002',
           'firstName': 'Jordan',
           'lastName': 'Park',
           'serverColor': {'serverColor': '#64B5F6', 'textColor': '#FFFFFF'},
@@ -1039,7 +1049,7 @@ class DemoMockInterceptor extends Interceptor {
           'permissions': 'SERVER',
         },
         {
-          'guid': 'emp-3',
+          'guid': '1000000000000003',
           'firstName': 'Taylor',
           'lastName': 'Brooks',
           'serverColor': {'serverColor': '#81C784', 'textColor': '#FFFFFF'},
