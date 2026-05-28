@@ -35,20 +35,4 @@ if (!window._flutter) {
 }
 _flutter.buildConfig = {"engineRevision":"4c525dac5ebe5971c5708ef73558ed8edcf4a362","builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"},{}]};
 
-_flutter.loader.load({
-  serviceWorkerSettings: {
-    serviceWorkerVersion: "3382720445" /* Flutter's service worker is deprecated and will be removed in a future Flutter release. */
-  }
-});
-
-// Demo tablet-frame patch: re-run loader with hostElement if not already set
-if (window._flutter && window._flutter.loader) {
-  window._flutter.loader.load({
-    onEntrypointLoaded: async function(engineInitializer) {
-      const appRunner = await engineInitializer.initializeEngine({
-        hostElement: document.querySelector('#flutter-host'),
-      });
-      await appRunner.runApp();
-    }
-  });
-}
+_flutter.loader.load({onEntrypointLoaded:async function(e){var a=await e.initializeEngine({hostElement:document.querySelector("#flutter-host")});await a.runApp();}});
