@@ -370,7 +370,27 @@ class DemoMockInterceptor extends Interceptor {
       return {'message': null, 'results': [{'blockedConfigs': <String, dynamic>{}}]};
     }
     if (method == 'GET' && path.contains('/app/blocks/')) {
-      return {'message': null, 'results': <dynamic>[]};
+      // Empty results was crashing the main bloc — somewhere downstream
+      // does `list.first` (we saw "Bad state: No element" in early logs)
+      // and a missing first emission breaks the combine7 stream the floor
+      // plan reads from, so table-state updates never trigger a repaint
+      // until the next full poll cycle (the 10s delay on mark-dirty).
+      // Return one neutral BlockConfig that satisfies .first but blocks
+      // nothing — all flags false, all collections empty.
+      return {
+        'message': null,
+        'results': [
+          {
+            'onlineWaitlistBlocked': false,
+            'onlineReservationsBlocked': false,
+            'hostReservationsBlocked': false,
+            'name': '',
+            'blockedReason': '',
+            'blockedTables': <String>[],
+            'timeBasedConfigs': <dynamic>[],
+          },
+        ],
+      };
     }
     if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
     // Order completion / linking — parsed as List<OrderDto>. Empty results is safe.
