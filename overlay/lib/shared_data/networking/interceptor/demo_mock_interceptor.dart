@@ -1028,7 +1028,12 @@ class DemoMockInterceptor extends Interceptor {
   // Employee guids must be BigInt-parseable — Toast uses long numeric IDs.
   // Letter prefixes ("emp-1") crash the app's BigInt parser and break the
   // server roster modal (white box) and the main bootstrap fetch.
+  //
+  // We include both on-roster servers (already working) and off-roster
+  // employees (selectable in the "Add to roster" modal). Without off-roster
+  // candidates the modal renders an empty list and crashes on .first.
   List<Map<String, dynamic>> _employees() => [
+        // ── On roster ─────────────────────────────────────────────────────
         {
           'guid': '1000000000000001',
           'firstName': 'Alex',
@@ -1056,6 +1061,57 @@ class DemoMockInterceptor extends Interceptor {
           'serverColor': {'serverColor': '#81C784', 'textColor': '#FFFFFF'},
           'onRoster': true,
           'clockedIn': true,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+        // ── Off roster (selectable to add) ────────────────────────────────
+        {
+          'guid': '1000000000000004',
+          'firstName': 'Morgan',
+          'lastName': 'Chen',
+          'serverColor': {'serverColor': '#BA68C8', 'textColor': '#FFFFFF'},
+          'onRoster': false,
+          'clockedIn': false,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+        {
+          'guid': '1000000000000005',
+          'firstName': 'Casey',
+          'lastName': 'Nguyen',
+          'serverColor': {'serverColor': '#FFB74D', 'textColor': '#FFFFFF'},
+          'onRoster': false,
+          'clockedIn': false,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+        {
+          'guid': '1000000000000006',
+          'firstName': 'Riley',
+          'lastName': 'Patel',
+          'serverColor': {'serverColor': '#4DD0E1', 'textColor': '#FFFFFF'},
+          'onRoster': false,
+          'clockedIn': false,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+        {
+          'guid': '1000000000000007',
+          'firstName': 'Sam',
+          'lastName': 'Walker',
+          'serverColor': {'serverColor': '#AED581', 'textColor': '#FFFFFF'},
+          'onRoster': false,
+          'clockedIn': false,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+        {
+          'guid': '1000000000000008',
+          'firstName': 'Drew',
+          'lastName': 'Kim',
+          'serverColor': {'serverColor': '#F06292', 'textColor': '#FFFFFF'},
+          'onRoster': false,
+          'clockedIn': false,
           'clockInRequired': false,
           'permissions': 'SERVER',
         },
