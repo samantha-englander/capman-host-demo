@@ -6,11 +6,13 @@ import 'package:injectable/injectable.dart';
 class DemoMockInterceptor extends Interceptor {
   final bool _isDemo;
 
-  // Session-scoped state: status overrides applied via PATCH endpoints.
-  // The interceptor is a @LazySingleton so this map survives across requests
-  // but resets when the page reloads — which is exactly what we want
-  // (status changes "stick" mid-demo, fresh state on every page load).
-  final Map<String, String> _statusOverrides = {};
+  // Session-scoped state: overrides applied via mutating endpoints.
+  // The interceptor is a @LazySingleton so these maps survive across requests
+  // but reset when the page reloads — which is exactly what we want
+  // (changes "stick" mid-demo, fresh state on every page load).
+  final Map<String, String> _statusOverrides = {};        // booking guid → status
+  final Map<String, DateTime> _notifyTimes = {};          // booking guid → firstNotified
+  final Map<String, String> _tableStateOverrides = {};    // table guid → state
 
   // In demo environment isProduction=false and isStaging=false — that's the
   // sole condition. debugFeaturesEnabled is intentionally false for demo so
@@ -29,10 +31,16 @@ class DemoMockInterceptor extends Interceptor {
     // ignore: avoid_print
     print('[DEMO] $method $path');
 
-    // Side-effect: PATCH endpoints that change a booking's status update the
-    // override map so subsequent GET /bookings responses reflect the change.
+    // Side-effects: capture state mutations from PATCH/POST endpoints into
+    // the override maps so subsequent GETs reflect the change.
     if (method == 'PATCH' && path.contains('/booking/')) {
       _captureStatusOverride(path, options.data);
+    }
+    if (method == 'POST' && path.endsWith('/booking/notify')) {
+      _captureNotify(options.data);
+    }
+    if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
+      _captureTableState(path, options.data);
     }
 
     handler.resolve(Response(
@@ -76,6 +84,33 @@ class DemoMockInterceptor extends Interceptor {
 
     if (newStatus != null) {
       _statusOverrides[guid] = newStatus;
+    }
+  }
+
+  /// Notify body schema verified from BookingNotifyRequestBody: contains
+  /// bookingGuid, restaurantGuid, guestGuid. Mark the booking NOTIFIED and
+  /// stamp firstNotified so the app's in-row countdown timer activates.
+  void _captureNotify(dynamic body) {
+    if (body is! Map) return;
+    final guid = body['bookingGuid'];
+    if (guid is! String || guid.isEmpty) return;
+    final isWaitlist = guid.startsWith('wait-');
+    _statusOverrides[guid] = isWaitlist ? 'W_NOTIFIED' : 'R_NOTIFIED';
+    _notifyTimes[guid] = DateTime.now();
+  }
+
+  /// Table state body is typically {tableGuids: [...]}. /dirty marks tables
+  /// DIRTY; /makeAvailable marks them AVAILABLE. Apply override so the next
+  /// /tableStates poll reflects the change on the floor plan.
+  void _captureTableState(String path, dynamic body) {
+    if (body is! Map) return;
+    final raw = body['tableGuids'];
+    if (raw is! List) return;
+    final newState = path.contains('/dirty') ? 'DIRTY' : 'AVAILABLE';
+    for (final t in raw) {
+      if (t is String && t.isNotEmpty) {
+        _tableStateOverrides[t] = newState;
+      }
     }
   }
 
@@ -131,6 +166,30 @@ class DemoMockInterceptor extends Interceptor {
       return {'results': found != null ? [found] : <dynamic>[]};
     }
     if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
+
+    // POST /booking/notify returns List<BookingDto> (the updated booking with
+    // status flipped to W_NOTIFIED / R_NOTIFIED and firstNotified stamped).
+    // _captureNotify already wired the override; just look up the booking.
+    if (method == 'POST' && path.endsWith('/booking/notify')) {
+      Map<String, dynamic>? found;
+      final body = null; // body already captured; just return updated record
+      // ignore: unused_local_variable
+      final _ = body;
+      // Find whichever booking was just notified (the most recent in the map).
+      if (_notifyTimes.isNotEmpty) {
+        final lastGuid = _notifyTimes.entries.last.key;
+        for (final b in _bookings()) {
+          if (b['guid'] == lastGuid) { found = b; break; }
+        }
+      }
+      return {'results': found != null ? [found] : <dynamic>[]};
+    }
+
+    // PATCH /table/dirty and /table/makeAvailable return List<TableStateDto>.
+    // _captureTableState already wrote the override; rebuild the full list.
+    if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
+      return {'results': _tableStates()};
+    }
 
     // Blocks / orders / other booking endpoints that crash parseJsonList when unhandled
     if (method == 'GET' && path.contains('/app/blocks')) return {'results': <dynamic>[]};
@@ -720,22 +779,30 @@ class DemoMockInterceptor extends Interceptor {
     // Apply session status overrides set by PATCH endpoints. This is what
     // makes status changes (e.g. Confirmed → Arrived) actually stick in the
     // UI for the duration of the page session.
-    if (_statusOverrides.isNotEmpty) {
+    if (_statusOverrides.isNotEmpty || _notifyTimes.isNotEmpty) {
       for (final b in list) {
         final guid = b['guid'] as String?;
         final override = _statusOverrides[guid];
         if (override != null) {
           b['bookingStatus'] = override;
-          // If status moved to ARRIVED, stamp an arrivedTime so the row UI
-          // shows the timestamp under the badge (matches what the app does
-          // when the real backend processes the change).
+          // Stamp timestamps the row UI keys off of, so badges + countdowns
+          // animate the way the real backend would drive them.
           if (override.endsWith('_ARRIVED') && b['arrivedTime'] == null) {
             b['arrivedTime'] = DateTime.now().toIso8601String();
           }
-          // If moving to SEATED, stamp actualStartTime for the same reason.
           if (override.endsWith('_SEATED') && b['actualStartTime'] == null) {
             b['actualStartTime'] = DateTime.now().toIso8601String();
           }
+        }
+        // Apply notify timestamp + bump notification count so the in-row
+        // countdown displays after the user taps "Notify guest".
+        final notifiedAt = _notifyTimes[guid];
+        if (notifiedAt != null) {
+          final iso = notifiedAt.toIso8601String();
+          b['firstNotified'] ??= iso;
+          b['lastNotified'] = iso;
+          final cur = (b['notificationCount'] as int?) ?? 0;
+          b['notificationCount'] = cur < 1 ? 1 : cur;
         }
       }
     }
@@ -1159,10 +1226,14 @@ class DemoMockInterceptor extends Interceptor {
     const occupied = {'t-1','t-2','t-11','t-12','t-13','t-21','t-22','t-p1','t-p2'};
     return _allTables().map((t) {
       final guid = t['guid'] as String;
+      // Override map wins if the user marked the table DIRTY or made it
+      // AVAILABLE via the floor-plan menu mid-session.
+      final overridden = _tableStateOverrides[guid];
+      final defaultState = occupied.contains(guid) ? 'SEATED' : 'AVAILABLE';
       return <String, dynamic>{
         'tableGuid': guid,
         // Valid values per app: AVAILABLE | DIRTY | BLOCKED | SEATED
-        'state': occupied.contains(guid) ? 'SEATED' : 'AVAILABLE',
+        'state': overridden ?? defaultState,
       };
     }).toList();
   }
