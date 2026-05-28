@@ -69,6 +69,12 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'GET' && path.contains('serverAssignment')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('shiftCutoff')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('employee')) return {'results': _employees()};
+    // Server-rotation / table-assignment feature: section, coverage, rotation endpoints
+    if (method == 'GET' && path.contains('section')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('coverage')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('rotation')) return {'results': <dynamic>[]};
+    if (method == 'POST' && path.contains('section')) return {'results': <dynamic>[]};
+    if (method == 'POST' && path.contains('rotation')) return {'results': <dynamic>[]};
 
     // Guest tags (needed for tag icons in reservation list)
     if (method == 'GET' && path.contains('guestTags')) return {'results': _guestTags()};
@@ -76,8 +82,11 @@ class DemoMockInterceptor extends Interceptor {
     // Guestbook
     if (method == 'GET' && path.contains('/guests')) return {'results': _guests()};
 
-    // Other endpoints
-    if (path.contains('smsThread') || path.contains('experience')) return <dynamic>[];
+    // SMS threads — must return {"results":[]} not a raw list (fixes TypeError on floor plan load)
+    if (path.contains('smsThread')) return {'results': <dynamic>[]};
+    // Waitlist/reservation notify — succeed silently so UI completes the flow
+    if (path.contains('notify')) return {'results': <dynamic>[]};
+    if (path.contains('experience')) return <dynamic>[];
     if (path.contains('appConfig')) return {'features': <String, dynamic>{}};
     if (method == 'POST' && path.contains('cloudSync')) return {'bookings': <dynamic>[]};
 
@@ -132,8 +141,8 @@ class DemoMockInterceptor extends Interceptor {
         'closeOutHour': null,
         'twoWaySmsEnabled': false,
         'orderCreationEnabled': false,
-        'waitlistNotifySmsEnabled': false,
-        'reservationNotifySmsEnabled': false,
+        'waitlistNotifySmsEnabled': true,
+        'reservationNotifySmsEnabled': true,
         'locale': null,
       };
 
@@ -287,7 +296,7 @@ class DemoMockInterceptor extends Interceptor {
           occasion: 'BIRTHDAY', vip: true),
       _booking(guid: 'res-2', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 45))),
-          tables: ['t-3'], areas: ['area-dining'],
+          tables: [], areas: ['area-dining'],
           firstName: 'Patrick', lastName: 'Cooper', phone: '16505555670',
           email: 'patrick.cooper@fakemail.com',
           created: now.subtract(const Duration(days: 1)),
@@ -818,7 +827,7 @@ class DemoMockInterceptor extends Interceptor {
     required int partySize,
     required DateTime start,
     required List<String> tables,
-    required List<String> areas,
+    required List<String> areas, // empty → defaults to ['area-dining']
     required String firstName,
     required String lastName,
     required String phone,
@@ -830,6 +839,10 @@ class DemoMockInterceptor extends Interceptor {
     String? occasion,
     bool vip = false,
   }) {
+    // Default to Dining Room so every reservation shows its area in the list.
+    // Patio/other areas must be passed explicitly (non-empty list).
+    final effectiveAreas = areas.isEmpty ? const <String>['area-dining'] : areas;
+
     return {
       'guid': guid,
       'bookingType': type,
@@ -840,7 +853,7 @@ class DemoMockInterceptor extends Interceptor {
       'actualStartTime': status == 'R_SEATED' ? start.toIso8601String() : null,
       'actualEndTime': null,
       'tables': tables,
-      'serviceAreas': areas,
+      'serviceAreas': effectiveAreas,
       'serviceAreaGroup': null,
       'requestedServiceAreaGroups': <String>[],
       'server': null,
@@ -960,7 +973,8 @@ class DemoMockInterceptor extends Interceptor {
       final guid = t['guid'] as String;
       return <String, dynamic>{
         'tableGuid': guid,
-        'state': occupied.contains(guid) ? 'OCCUPIED' : 'AVAILABLE',
+        // Valid values per app: AVAILABLE | DIRTY | BLOCKED | SEATED
+        'state': occupied.contains(guid) ? 'SEATED' : 'AVAILABLE',
       };
     }).toList();
   }
