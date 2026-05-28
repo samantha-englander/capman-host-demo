@@ -1042,7 +1042,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': true,
           'clockedIn': true,
           'clockInRequired': false,
-          'permissions': 'HOST',
+          'permissions': '4',
         },
         {
           'guid': '1000000000000002',
@@ -1052,7 +1052,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': true,
           'clockedIn': true,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
         {
           'guid': '1000000000000003',
@@ -1062,7 +1062,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': true,
           'clockedIn': true,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
         // ── Off roster (selectable to add) ────────────────────────────────
         {
@@ -1073,7 +1073,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': false,
           'clockedIn': false,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
         {
           'guid': '1000000000000005',
@@ -1083,7 +1083,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': false,
           'clockedIn': false,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
         {
           'guid': '1000000000000006',
@@ -1093,7 +1093,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': false,
           'clockedIn': false,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
         {
           'guid': '1000000000000007',
@@ -1103,7 +1103,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': false,
           'clockedIn': false,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
         {
           'guid': '1000000000000008',
@@ -1113,7 +1113,7 @@ class DemoMockInterceptor extends Interceptor {
           'onRoster': false,
           'clockedIn': false,
           'clockInRequired': false,
-          'permissions': 'SERVER',
+          'permissions': '4',
         },
       ];
 
