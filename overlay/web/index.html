@@ -15,142 +15,112 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background-color: #1a1c1f;
+      background-color: #0d0f11;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
+      min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       overflow: hidden;
     }
 
-    #loading {
+    /* ── Card (matches the Flutter login card) ── */
+    #loading-card {
+      background: rgba(22, 24, 28, 0.97);
+      border-radius: 20px;
+      padding: 52px 44px 48px;
+      width: 360px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 32px;
-      color: #ffffff;
+      gap: 0;
       opacity: 1;
-      transition: opacity 0.4s ease;
-      text-align: center;
-      padding: 24px;
+      transition: opacity 0.35s ease;
     }
 
-    #loading.fade-out { opacity: 0; }
+    #loading-card.fade-out { opacity: 0; }
 
-    /* ── Logo lockup ── */
-    #logo-lockup {
+    /* ── Logo row ── */
+    .logo-row {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
+      margin-bottom: 10px;
     }
 
-    #toast-icon {
-      width: 56px;
-      height: 56px;
-      opacity: 0.92;
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
     }
 
-    #loading-logo {
-      font-size: 26px;
+    .logo-text {
+      font-size: 22px;
       font-weight: 700;
-      letter-spacing: -0.5px;
       color: #ffffff;
+      letter-spacing: -0.3px;
     }
 
-    #loading-logo span {
-      color: #e8d5a3;
+    /* ── Subtitle ── */
+    .logo-subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 44px;
+      max-width: 260px;
     }
 
-    /* ── Progressive fill dots ── */
-    .dot-track {
-      display: flex;
-      gap: 7px;
-      align-items: center;
-    }
-
-    .fdot {
-      width: 7px;
-      height: 7px;
+    /* ── Teal spinner ── */
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(78, 205, 196, 0.2);
+      border-top-color: #4ecdc4;
       border-radius: 50%;
-      background: rgba(255,255,255,0.15);
+      animation: spin 0.75s linear infinite;
+      margin-bottom: 24px;
     }
 
-    /* ── Pun ── */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Phrase ── */
     #pun {
-      font-size: 14px;
-      color: rgba(255, 255, 255, 0.5);
-      letter-spacing: 0.1px;
-      min-height: 20px;
-      transition: opacity 0.5s ease;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.45);
+      text-align: center;
+      min-height: 18px;
+      transition: opacity 0.4s ease;
+      letter-spacing: 0.05px;
     }
 
     #pun.hidden { opacity: 0; }
   </style>
 </head>
 <body>
-  <div id="loading">
+  <div id="loading-card">
 
-    <div id="logo-lockup">
-      <!-- Toast slice icon -->
-      <svg id="toast-icon" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- toast slice body -->
-        <rect x="10" y="14" width="36" height="32" rx="5" fill="#e8d5a3" opacity="0.9"/>
-        <!-- crust bottom -->
-        <rect x="10" y="38" width="36" height="8" rx="3" fill="#c8a96e" opacity="0.9"/>
-        <!-- heat waves -->
-        <path d="M20 8 Q22 5 24 8 Q26 11 28 8" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.55"/>
-        <path d="M28 8 Q30 5 32 8 Q34 11 36 8" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.55"/>
+    <!-- Logo (mirrors the Flutter login screen header) -->
+    <div class="logo-row">
+      <!-- Circle host icon — approximates the app icon -->
+      <svg class="logo-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="17" stroke="white" stroke-width="1.8"/>
+        <circle cx="18" cy="13" r="4.5" fill="white"/>
+        <path d="M7 30 Q7 22 18 22 Q29 22 29 30" fill="white"/>
       </svg>
-
-      <div id="loading-logo">Toast <span>Tables</span></div>
+      <span class="logo-text">Toast Tables</span>
     </div>
 
-    <div class="dot-track" id="dot-track">
-      <!-- 10 dots, filled by JS -->
-      <div class="fdot" id="d0"></div>
-      <div class="fdot" id="d1"></div>
-      <div class="fdot" id="d2"></div>
-      <div class="fdot" id="d3"></div>
-      <div class="fdot" id="d4"></div>
-      <div class="fdot" id="d5"></div>
-      <div class="fdot" id="d6"></div>
-      <div class="fdot" id="d7"></div>
-      <div class="fdot" id="d8"></div>
-      <div class="fdot" id="d9"></div>
-    </div>
+    <div class="logo-subtitle">Waitlist, Reservation, and Capacity Management by Toast</div>
+
+    <div class="spinner"></div>
 
     <div id="pun">Seating your experience...</div>
   </div>
 
   <script>
-    // ── Progressive fill dots ──────────────────────────────────────────────────
-    var dots = Array.from({length: 10}, function(_, i) { return document.getElementById('d' + i); });
-    var filledColor = '#e8d5a3';
-    var emptyColor  = 'rgba(255,255,255,0.15)';
-    var dotIndex = 0;
-    var forward = true;
-
-    function stepDots() {
-      if (forward) {
-        if (dotIndex < dots.length) {
-          dots[dotIndex].style.background = filledColor;
-          dots[dotIndex].style.transition = 'background 0.18s ease';
-          dotIndex++;
-        } else {
-          forward = false;
-          setTimeout(function() {
-            dots.forEach(function(d) { d.style.background = emptyColor; });
-            dotIndex = 0;
-            forward = true;
-          }, 500);
-        }
-      }
-    }
-
-    setInterval(stepDots, 160);
-
     // ── Pun rotation ──────────────────────────────────────────────────────────
     var puns = [
       "Seating your experience...",
@@ -160,9 +130,9 @@
       "Your table will be ready shortly...",
       "Briefing the host staff...",
       "Checking the reservation book...",
-      "Preparing tonight’s floor plan...",
+      "Preparing tonight's floor plan...",
       "Teaching the waitlist to wait patiently...",
-      "No walk-ins, we promise you’re expected.",
+      "No walk-ins, we promise you're expected.",
     ];
 
     var punEl = document.getElementById('pun');
@@ -174,17 +144,17 @@
         currentPun = (currentPun + 1) % puns.length;
         punEl.textContent = puns[currentPun];
         punEl.classList.remove('hidden');
-      }, 500);
+      }, 400);
     }
 
     setInterval(rotatePun, 4500);
 
     // ── Hide on first Flutter frame ───────────────────────────────────────────
     window.addEventListener('flutter-first-frame', function () {
-      var el = document.getElementById('loading');
+      var el = document.getElementById('loading-card');
       if (el) {
         el.classList.add('fade-out');
-        setTimeout(function () { el.remove(); }, 450);
+        setTimeout(function () { el.remove(); }, 400);
       }
     });
   </script>

@@ -35,6 +35,8 @@ class DemoMockInterceptor extends Interceptor {
   dynamic _respond(String method, String path) {
     // Auth
     if (path.contains('oauth/token')) return _authToken();
+    // devices/tables must come before generic device check — returns AuthToken shape
+    if (method == 'POST' && path.contains('devices/tables')) return _deviceAuthToken();
     if (path.contains('device')) return _deviceInfo();
 
     // Restaurant selection — ALL use parseJsonList → {"results": [...]}
@@ -74,6 +76,12 @@ class DemoMockInterceptor extends Interceptor {
         'refresh_token': 'demo-refresh-token',
         'token_type': 'Bearer',
         'expires_in': 86400,
+      };
+
+  // AuthToken uses json_serializable default (camelCase keys)
+  Map<String, dynamic> _deviceAuthToken() => {
+        'accessToken': 'demo-device-access-token',
+        'refreshToken': 'demo-device-refresh-token',
       };
 
   // ── Device ────────────────────────────────────────────────────────────────
