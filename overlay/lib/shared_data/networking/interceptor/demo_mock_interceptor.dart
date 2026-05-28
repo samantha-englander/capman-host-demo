@@ -83,7 +83,15 @@ class DemoMockInterceptor extends Interceptor {
         };
 
     // Roster — parseJsonList → {"results": [...]}
-    if (method == 'GET' && path.contains('serverAssignment')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('serverAssignment')) return {'results': _serverAssignments()};
+    // POST /roster/replace — RosterReplaceResponse shape verified from source:
+    // { employees: [EmployeeDto...], serverAssignments: [ServerAssignmentDto...] }
+    // Returning empty {} causes a `Bad state: No element` crash and the save
+    // button hangs in "in progress" forever.
+    if (method == 'POST' && path.contains('roster/replace')) return {
+          'employees': _employees(),
+          'serverAssignments': _serverAssignments(),
+        };
     if (method == 'GET' && path.contains('shiftCutoff')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('employee')) return {'results': _employees()};
     // Server-rotation / table-assignment feature: section, coverage, rotation endpoints
@@ -1077,8 +1085,8 @@ class DemoMockInterceptor extends Interceptor {
           'firstName': 'Casey',
           'lastName': 'Nguyen',
           'serverColor': {'serverColor': '#FFB74D', 'textColor': '#FFFFFF'},
-          'onRoster': false,
-          'clockedIn': false,
+          'onRoster': true,
+          'clockedIn': true,
           'clockInRequired': false,
           'permissions': '4',
         },
@@ -1113,6 +1121,57 @@ class DemoMockInterceptor extends Interceptor {
           'permissions': '4',
         },
       ];
+
+  // ── Server assignments (employee ↔ table mapping) ────────────────────────
+  // Default sections per Sam's request:
+  //   Alex   → dining tables 1-5
+  //   Jordan → dining tables 11-15
+  //   Taylor → round tables 21-23 + counter C1-C6
+  //   Casey  → all patio tables
+  // Schema verified from ServerAssignmentDto source: {employeeGuid, tableGuid}.
+
+  static const String _empAlex   = '1000000000000001';
+  static const String _empJordan = '1000000000000002';
+  static const String _empTaylor = '1000000000000003';
+  static const String _empCasey  = '1000000000000005';
+
+  List<Map<String, dynamic>> _serverAssignments() {
+    Map<String, dynamic> assign(String emp, String table) => {
+      'employeeGuid': emp,
+      'tableGuid': table,
+    };
+    return [
+      // Alex — dining 1-5
+      assign(_empAlex,   't-1'),
+      assign(_empAlex,   't-2'),
+      assign(_empAlex,   't-3'),
+      assign(_empAlex,   't-4'),
+      assign(_empAlex,   't-5'),
+      // Jordan — dining 11-15
+      assign(_empJordan, 't-11'),
+      assign(_empJordan, 't-12'),
+      assign(_empJordan, 't-13'),
+      assign(_empJordan, 't-14'),
+      assign(_empJordan, 't-15'),
+      // Taylor — round 21-23 + counter C1-C6
+      assign(_empTaylor, 't-21'),
+      assign(_empTaylor, 't-22'),
+      assign(_empTaylor, 't-23'),
+      assign(_empTaylor, 't-c1'),
+      assign(_empTaylor, 't-c2'),
+      assign(_empTaylor, 't-c3'),
+      assign(_empTaylor, 't-c4'),
+      assign(_empTaylor, 't-c5'),
+      assign(_empTaylor, 't-c6'),
+      // Casey — patio
+      assign(_empCasey,  't-p1'),
+      assign(_empCasey,  't-p2'),
+      assign(_empCasey,  't-p3'),
+      assign(_empCasey,  't-p4'),
+      assign(_empCasey,  't-p5'),
+      assign(_empCasey,  't-p6'),
+    ];
+  }
 
   // ── Guest tags ────────────────────────────────────────────────────────────
 
