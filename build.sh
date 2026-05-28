@@ -48,35 +48,37 @@ flutter build web \
   --base-href /capman-host-demo/
 
 echo "==> Patching flutter_bootstrap.js to mount Flutter inside tablet-frame host element..."
-# Flutter generates build/web/flutter_bootstrap.js with a bare _flutter.loader.load() call.
-# We replace it with the hostElement config so Flutter mounts into #flutter-host (the tablet
-# screen area) rather than the full browser viewport.
-if grep -q '_flutter\.loader\.load();' build/web/flutter_bootstrap.js; then
-  # Match ONLY the entrypoint invocation (with trailing semicolon), no /g.
-  # Without these constraints, sed also rewrites internal references to
-  # _flutter.loader.load inside the inlined loader script, which causes
-  # Flutter to initialize TWICE (two engines mounting, frame breaks).
-  sed -i 's/_flutter\.loader\.load();/_flutter.loader.load({onEntrypointLoaded:async function(e){var a=await e.initializeEngine({hostElement:document.querySelector("#flutter-host")});await a.runApp();}});/' build/web/flutter_bootstrap.js
-  echo "    OK — hostElement config injected (single entrypoint)."
-else
-  echo "    WARNING: expected pattern not found; trying legacy onEntrypointLoaded form..."
-  # Fallback: append a small override script if the generated file uses a different form
-  cat >> build/web/flutter_bootstrap.js << 'ENDPATCH'
+# Replace ONLY the final _flutter.loader.load(...) invocation in the file.
+# The inlined Flutter loader script contains internal references to .load that
+# must NOT be modified, or we end up with double engine initialization.
+# Python rsplit guarantees only the last occurrence is rewritten.
+python3 <<'PYEOF'
+import re
+path = 'build/web/flutter_bootstrap.js'
+with open(path) as f:
+    content = f.read()
 
-// Demo tablet-frame patch: re-run loader with hostElement if not already set
-if (window._flutter && window._flutter.loader) {
-  window._flutter.loader.load({
-    onEntrypointLoaded: async function(engineInitializer) {
-      const appRunner = await engineInitializer.initializeEngine({
-        hostElement: document.querySelector('#flutter-host'),
-      });
-      await appRunner.runApp();
-    }
-  });
-}
-ENDPATCH
-  echo "    Appended fallback hostElement patch."
-fi
+# Find the LAST `_flutter.loader.load(...)` call — that's the public entrypoint.
+# Match the call and any existing arguments inside the parens.
+pattern = re.compile(r'_flutter\.loader\.load\([^)]*\)\s*;?\s*$', re.MULTILINE)
+matches = list(pattern.finditer(content))
+if matches:
+    last = matches[-1]
+    replacement = (
+        '_flutter.loader.load({'
+        'onEntrypointLoaded:async function(e){'
+        'var a=await e.initializeEngine({hostElement:document.querySelector("#flutter-host")});'
+        'await a.runApp();'
+        '}'
+        '});'
+    )
+    content = content[:last.start()] + replacement + content[last.end():]
+    with open(path, 'w') as f:
+        f.write(content)
+    print(f'    OK — patched last loader call at offset {last.start()}.')
+else:
+    print('    WARNING: no _flutter.loader.load(...) match found; frame may not work.')
+PYEOF
 
 echo "==> Patching login button text for demo..."
 sed -i 's/Login with your Toast account/Start Demo/g' build/web/main.dart.js
