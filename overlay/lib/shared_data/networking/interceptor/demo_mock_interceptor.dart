@@ -138,6 +138,24 @@ class DemoMockInterceptor extends Interceptor {
 
     // Bookings — parseJsonList → {"results": [...]}
     if (method == 'GET' && path.endsWith('/bookings')) return {'results': _bookings()};
+    // GET /booking/v2/app/booking/{guid}/orderPriceSummary — fires when the
+    // user opens a seated booking's detail screen ("View order"). Returns
+    // List<OrderPriceSummaryDto>. Deterministic per guid + party size so the
+    // same table always shows the same check.
+    if (method == 'GET' && path.endsWith('/orderPriceSummary')) {
+      final afterBooking = path.split('/booking/').last;
+      final guid = afterBooking.split('/').first;
+      Map<String, dynamic>? booking;
+      for (final b in _bookings()) {
+        if (b['guid'] == guid) { booking = b; break; }
+      }
+      // Only seated parties have an order. Reservations, arrived, waitlist → empty.
+      final status = booking?['bookingStatus'] as String?;
+      final isSeated = status == 'R_SEATED' || status == 'W_SEATED';
+      if (!isSeated) return {'results': <dynamic>[]};
+      final partySize = (booking?['partySize'] as int?) ?? 2;
+      return {'results': [_orderPriceSummary(guid, partySize)]};
+    }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     if (method == 'PATCH' && path.contains('/booking/')) {
       final guid = path.split('/booking/').last.split('/').first;
@@ -391,8 +409,10 @@ class DemoMockInterceptor extends Interceptor {
 
     final list = <Map<String, dynamic>>[
       // ── Seated (currently at tables) ─────────────────────────────────────
+      // Long-seated party: 80 min in → synthetic order state PAID (check
+      // dropped, about to leave). Good for demoing the late-stage row UI.
       _booking(guid: 'seat-1', type: 'RESERVATION', status: 'R_SEATED', partySize: 4,
-          start: now.subtract(const Duration(minutes: 35)),
+          start: now.subtract(const Duration(minutes: 80)),
           tables: ['t-1'], areas: ['area-dining'],
           firstName: 'Jason', lastName: 'Mitchell', phone: '14085558123',
           email: 'jason.mitchell@fakemail.com',
@@ -409,8 +429,10 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Judith', lastName: 'Thomas', phone: '12135557637',
           email: 'judith.thomas@fakemail.com',
           created: now.subtract(const Duration(hours: 1))),
+      // Second long-seated party: 85 min in → PAID. Spread the PAID parties
+      // across rows so the floor plan shows variety.
       _booking(guid: 'seat-4', type: 'RESERVATION', status: 'R_SEATED', partySize: 3,
-          start: now.subtract(const Duration(minutes: 50)),
+          start: now.subtract(const Duration(minutes: 85)),
           tables: ['t-12'], areas: ['area-dining'],
           firstName: 'Beverly', lastName: 'Reed', phone: '16505559326',
           email: 'beverly.reed@fakemail.com',
@@ -1294,6 +1316,112 @@ class DemoMockInterceptor extends Interceptor {
     }
   }
 
+  // ── Order summary (View order on a seated booking) ──────────────────────
+  //
+  // DTO shapes verified from source:
+  //   OrderPriceSummaryDto {selections, subTotal, tax, total,
+  //                         subTotalMonetary, taxMonetary, totalMonetary,
+  //                         serviceCharges, addOnConfigs}
+  //   SelectionItem {name, quantity, unitPrice, unitPriceMonetary, selectionType}
+  //   MonetaryAmount {amountInMinorUnits (cents), currencyCode}
+  //   ServiceChargeDto {name, unitPriceMonetary}
+  //
+  // Generates a deterministic believable check per booking guid + party size.
+  // Same guid → same items every time, so a sales demo is repeatable.
+
+  // Curated demo menu. Prices in dollars; converted to cents at build time.
+  static const List<({String name, double price})> _demoMains = [
+    (name: 'Steak Frites',     price: 38.00),
+    (name: 'Grilled Salmon',   price: 32.00),
+    (name: 'Pasta Primavera',  price: 24.00),
+    (name: 'House Burger',     price: 22.00),
+    (name: 'Roasted Chicken',  price: 28.00),
+  ];
+  static const List<({String name, double price})> _demoApps = [
+    (name: 'Bruschetta',       price: 14.00),
+    (name: 'Calamari',         price: 16.00),
+    (name: 'Caesar Salad',     price: 12.00),
+    (name: 'Tuna Tartare',     price: 18.00),
+  ];
+  static const List<({String name, double price})> _demoDrinks = [
+    (name: 'House Red',        price: 14.00),
+    (name: 'House White',      price: 14.00),
+    (name: 'IPA',              price:  9.00),
+    (name: 'Sparkling Water',  price:  6.00),
+  ];
+
+  Map<String, dynamic> _monetary(int cents) => {
+    'amountInMinorUnits': cents,
+    'currencyCode': 'USD',
+  };
+
+  Map<String, dynamic> _selection(String name, double dollars, int qty) {
+    final cents = (dollars * 100).round();
+    return {
+      'name': name,
+      'quantity': qty.toDouble(),
+      'unitPrice': dollars,
+      'unitPriceMonetary': _monetary(cents),
+      'selectionType': 'REQUIRED',
+    };
+  }
+
+  Map<String, dynamic> _orderPriceSummary(String bookingGuid, int partySize) {
+    // Deterministic seed from guid → consistent items per booking.
+    final seed = bookingGuid.hashCode & 0x7fffffff;
+    final main1 = _demoMains[seed % _demoMains.length];
+    final main2 = _demoMains[(seed >> 3) % _demoMains.length];
+    final app1  = _demoApps[(seed >> 6) % _demoApps.length];
+    final drink1 = _demoDrinks[(seed >> 9) % _demoDrinks.length];
+    final drink2 = _demoDrinks[(seed >> 12) % _demoDrinks.length];
+
+    final selections = <Map<String, dynamic>>[];
+    int subCents = 0;
+
+    // One main per person — alternate between two picks so it feels real.
+    for (int i = 0; i < partySize; i++) {
+      final m = i.isEven ? main1 : main2;
+      selections.add(_selection(m.name, m.price, 1));
+      subCents += (m.price * 100).round();
+    }
+    // One shared app for parties of 3+.
+    if (partySize >= 3) {
+      selections.add(_selection(app1.name, app1.price, 1));
+      subCents += (app1.price * 100).round();
+    }
+    // Drinks: one per person, alternating between two picks.
+    for (int i = 0; i < partySize; i++) {
+      final d = i.isEven ? drink1 : drink2;
+      selections.add(_selection(d.name, d.price, 1));
+      subCents += (d.price * 100).round();
+    }
+
+    final taxCents = (subCents * 0.08).round();       // 8% sales tax
+    final totalCents = subCents + taxCents;
+
+    // Auto-gratuity for parties of 6+.
+    final serviceCharges = <Map<String, dynamic>>[];
+    if (partySize >= 6) {
+      final gratCents = (subCents * 0.20).round();
+      serviceCharges.add({
+        'name': 'Auto-gratuity (20%)',
+        'unitPriceMonetary': _monetary(gratCents),
+      });
+    }
+
+    return {
+      'selections': selections,
+      'subTotal': subCents / 100.0,
+      'tax': taxCents / 100.0,
+      'total': totalCents / 100.0,
+      'subTotalMonetary': _monetary(subCents),
+      'taxMonetary': _monetary(taxCents),
+      'totalMonetary': _monetary(totalCents),
+      'serviceCharges': serviceCharges,
+      'addOnConfigs': <dynamic>[],
+    };
+  }
+
   Map<String, dynamic> _smartWaitEstimate(int partySize) {
     final now = DateTime.now();
     final allBookings = _bookings();
@@ -1535,12 +1663,22 @@ class DemoMockInterceptor extends Interceptor {
 
   List<Map<String, dynamic>> _tableStates() {
     const occupied = {'t-1','t-2','t-11','t-12','t-13','t-21','t-22','t-p1','t-p2'};
+    // A few tables start DIRTY (recently bussed, awaiting reset) so the
+    // floor plan shows variety on load. One per area for visual spread.
+    const defaultDirty = {'t-14', 't-c4', 't-p3'};
     return _allTables().map((t) {
       final guid = t['guid'] as String;
       // Override map wins if the user marked the table DIRTY or made it
       // AVAILABLE via the floor-plan menu mid-session.
       final overridden = _tableStateOverrides[guid];
-      final defaultState = occupied.contains(guid) ? 'SEATED' : 'AVAILABLE';
+      final String defaultState;
+      if (occupied.contains(guid)) {
+        defaultState = 'SEATED';
+      } else if (defaultDirty.contains(guid)) {
+        defaultState = 'DIRTY';
+      } else {
+        defaultState = 'AVAILABLE';
+      }
       return <String, dynamic>{
         'tableGuid': guid,
         // Valid values per app: AVAILABLE | DIRTY | BLOCKED | SEATED
