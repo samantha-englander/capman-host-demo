@@ -1139,78 +1139,220 @@ class DemoMockInterceptor extends Interceptor {
 
   // ── Smart waitlist estimate ─────────────────────────────────────────────
   //
-  // For the requested party size, find the SEATED party whose 90-min turn
-  // ends soonest on a table that fits → that's the wait time in minutes.
-  // If no seated parties fit, fall back to a "next available table opens
-  // shortly" estimate so the UI still has something to show.
+  // Ports the spirit of Toast's WaitlistTimeService.deterministicWaitlistTime
+  // EstimateV2 algorithm (toast-booking-application/.../WaitlistTimeService.kt).
+  // Inputs accounted for:
+  //   1. Currently-SEATED parties → their tables are busy until start+90min
+  //   2. Reservations on the books (R_CONFIRMED, R_ARRIVED) → blockers in
+  //      the same way, since the same availability engine drives both flows
+  //   3. Waitlist parties already ahead → consumed in createdDate order,
+  //      each fake-assigned to the soonest table that fits, mutating the
+  //      "next free at" map so subsequent parties wait longer
+  //   4. Table fit incl. pushed-together combos (1-5 and 11-15 are 2-tops
+  //      that push for 4 / 6; 21-23 are 5-6 rounds; counter pushes for 2;
+  //      patio never pushes per Sam's spec)
+  //   5. Per-service-area output so the UI can show dining vs patio waits
+  //   6. 5-min bucketing for lower/upper bounds matching the real backend
+  // Simplifications vs prod:
+  //   - We don't have orders, so seated parties don't get the order-state
+  //     based push-out (PAID → 5min, ORDERED → progress-based, IDLE → 75%).
+  //     We use the straight expectedEndTime = start + 90min.
+  //   - We use a 15-min slot model implicitly by computing exact "freeAt"
+  //     timestamps; we don't snap to slot boundaries (close enough for demo).
 
-  Map<String, dynamic> _smartWaitEstimate(int partySize) {
-    final now = DateTime.now();
-    final tablesByGuid = {
-      for (final t in _allTables()) t['guid'] as String: t,
-    };
+  // Adjacency / capacity rules. Tables list order matters: adjacent = pushable.
+  static const List<List<String>> _diningTwoTopRows = [
+    ['t-1', 't-2', 't-3', 't-4', 't-5'],
+    ['t-11', 't-12', 't-13', 't-14', 't-15'],
+  ];
+  static const List<String> _diningRounds = ['t-21', 't-22', 't-23'];
+  static const List<String> _counterRow =
+      ['t-c1', 't-c2', 't-c3', 't-c4', 't-c5', 't-c6'];
+  static const List<String> _patioTables =
+      ['t-p1', 't-p2', 't-p3', 't-p4', 't-p5', 't-p6'];
 
-    int? diningMinutes;
-    int? patioMinutes;
-    int totalSeated = 0;
-
-    for (final b in _bookings()) {
-      final status = b['bookingStatus'] as String?;
-      if (status != 'R_SEATED' && status != 'W_SEATED') continue;
-      totalSeated++;
-
-      // Effective seat time = actualStartTime ?? expectedStartTime.
-      final startIso = (b['actualStartTime'] as String?)
-          ?? (b['expectedStartTime'] as String?);
-      if (startIso == null) continue;
-      final seatedAt = DateTime.tryParse(startIso);
-      if (seatedAt == null) continue;
-      // 90 min turn time (matches our turn-time used elsewhere).
-      final freeAt = seatedAt.add(const Duration(minutes: 90));
-      var remaining = freeAt.difference(now).inMinutes;
-      if (remaining < 1) remaining = 1;
-
-      final guids = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
-      for (final g in guids) {
-        final t = tablesByGuid[g];
-        if (t == null) continue;
-        final maxCap = (t['maxCapacity'] as int?) ?? 0;
-        if (maxCap < partySize) continue;
-        final isPatio = g.startsWith('t-p');
-        if (isPatio) {
-          if (patioMinutes == null || remaining < patioMinutes) {
-            patioMinutes = remaining;
+  /// Generate every table combo (single or pushed) that can seat [partySize]
+  /// in the given [area]. Returned lists are table guids.
+  List<List<String>> _candidateCombos(int partySize, String area) {
+    final out = <List<String>>[];
+    if (area == 'dining') {
+      // Single 2-tops (cap 2)
+      if (partySize <= 2) {
+        for (final row in _diningTwoTopRows) {
+          for (final g in row) out.add([g]);
+        }
+      }
+      // Big rounds (5-6 cap, no pushing)
+      if (partySize <= 6) {
+        for (final g in _diningRounds) out.add([g]);
+      }
+      // Pushed 2-tops in each row
+      for (final row in _diningTwoTopRows) {
+        if (partySize >= 3 && partySize <= 4) {
+          for (int i = 0; i < row.length - 1; i++) {
+            out.add([row[i], row[i + 1]]);
           }
-        } else {
-          if (diningMinutes == null || remaining < diningMinutes) {
-            diningMinutes = remaining;
+        }
+        if (partySize >= 5 && partySize <= 6) {
+          for (int i = 0; i < row.length - 2; i++) {
+            out.add([row[i], row[i + 1], row[i + 2]]);
           }
         }
       }
+      // Counter — singles for 1-top, adjacent pairs for 2-top
+      if (partySize == 1) {
+        for (final g in _counterRow) out.add([g]);
+      } else if (partySize == 2) {
+        for (int i = 0; i < _counterRow.length - 1; i++) {
+          out.add([_counterRow[i], _counterRow[i + 1]]);
+        }
+      }
+    } else if (area == 'patio') {
+      // Patio: singles only, cap 4
+      if (partySize <= 4) {
+        for (final g in _patioTables) out.add([g]);
+      }
+    }
+    return out;
+  }
+
+  /// For [combo], "ready at" is when every table in the combo is free.
+  DateTime _comboReadyAt(List<String> combo, Map<String, DateTime> freeAt) {
+    DateTime ready = freeAt[combo.first]!;
+    for (final g in combo.skip(1)) {
+      final t = freeAt[g];
+      if (t != null && t.isAfter(ready)) ready = t;
+    }
+    return ready;
+  }
+
+  /// Find the soonest combo (any area, any size) that fits [partySize].
+  /// Returns the combo to fake-assign (or null if nothing fits today).
+  List<String>? _earliestComboAnywhere(
+    int partySize,
+    Map<String, DateTime> freeAt,
+  ) {
+    List<String>? best;
+    DateTime? bestAt;
+    for (final area in const ['dining', 'patio']) {
+      for (final combo in _candidateCombos(partySize, area)) {
+        final at = _comboReadyAt(combo, freeAt);
+        if (bestAt == null || at.isBefore(bestAt)) {
+          best = combo;
+          bestAt = at;
+        }
+      }
+    }
+    return best;
+  }
+
+  /// Bucket [m] into a 5-min-rounded (lower, upper) window. Matches the
+  /// real `calculateWaitTimeRange` in WaitlistTimeService.kt.
+  List<int> _bucketTo5MinRange(int m) {
+    if (m <= 0) return const [0, 0];
+    var adj = m;
+    if (adj % 5 == 0) adj -= 1;
+    if (adj < 60) {
+      final lower = (adj ~/ 5) * 5;
+      return [lower, lower + 10];
+    }
+    final lower = (adj ~/ 5) * 5 - 5;
+    final upper = ((m + 4) ~/ 5) * 5 + 5;
+    return [lower < 0 ? 0 : lower, upper];
+  }
+
+  Map<String, dynamic> _smartWaitEstimate(int partySize) {
+    final now = DateTime.now();
+    final allBookings = _bookings();
+
+    // Step 1: build "next free at" per table, accounting for currently-seated
+    // AND reservations on the books (anyone whose 90-min window ends after now).
+    final freeAt = <String, DateTime>{};
+    for (final t in _allTables()) {
+      freeAt[t['guid'] as String] = now;
+    }
+    for (final b in allBookings) {
+      final status = b['bookingStatus'] as String?;
+      final blocks = status == 'R_SEATED'
+          || status == 'W_SEATED'
+          || status == 'R_ARRIVED'
+          || status == 'R_CONFIRMED';
+      if (!blocks) continue;
+      final startIso = (b['actualStartTime'] as String?)
+          ?? (b['expectedStartTime'] as String?);
+      if (startIso == null) continue;
+      final start = DateTime.tryParse(startIso);
+      if (start == null) continue;
+      final end = start.add(const Duration(minutes: 90));
+      if (end.isBefore(now)) continue;
+      final tables = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
+      for (final g in tables) {
+        if (!freeAt.containsKey(g)) continue;
+        if (end.isAfter(freeAt[g]!)) freeAt[g] = end;
+      }
     }
 
-    // How many waitlist parties are ahead (currently W_WAITING / W_NOTIFIED).
-    int waiting = 0;
-    for (final b in _bookings()) {
+    // Step 2: place waitlist parties already ahead, in createdDate order.
+    // Each one fake-assigns to the soonest fitting combo and occupies those
+    // tables for 90 minutes from when they sit down. This is what makes the
+    // wait grow when the queue is long.
+    final waitlistsAhead = allBookings.where((b) {
       final s = b['bookingStatus'] as String?;
-      if (s == 'W_WAITING' || s == 'W_NOTIFIED') waiting++;
+      return s == 'W_WAITING' || s == 'W_NOTIFIED';
+    }).toList()
+      ..sort((a, b) {
+        final da = DateTime.tryParse((a['createdDate'] as String?) ?? '') ?? now;
+        final db = DateTime.tryParse((b['createdDate'] as String?) ?? '') ?? now;
+        return da.compareTo(db);
+      });
+    for (final w in waitlistsAhead) {
+      final wp = (w['partySize'] as int?) ?? 2;
+      final combo = _earliestComboAnywhere(wp, freeAt);
+      if (combo == null) continue;
+      final readyAt = _comboReadyAt(combo, freeAt);
+      final until = readyAt.add(const Duration(minutes: 90));
+      for (final g in combo) {
+        freeAt[g] = until;
+      }
     }
 
-    Map<String, dynamic> areaInfo(String groupGuid, int? minutes) => {
-      'partiesAhead': waiting,
-      'serviceAreaGroup': groupGuid,
-      'minutes': minutes ?? 0,
-      'estimatedLowerBound':
-          minutes == null ? 0 : (minutes - 5).clamp(0, 1 << 31),
-      'estimatedUpperBound': minutes == null ? 5 : minutes + 5,
-    };
+    // Step 3: for each service area, find the soonest combo that fits our
+    // party. The wait = minutes between now and that combo's ready time.
+    int? minutesForArea(String area) {
+      List<String>? best;
+      DateTime? bestAt;
+      for (final combo in _candidateCombos(partySize, area)) {
+        final at = _comboReadyAt(combo, freeAt);
+        if (bestAt == null || at.isBefore(bestAt)) {
+          best = combo;
+          bestAt = at;
+        }
+      }
+      if (best == null || bestAt == null) return null;
+      final diff = bestAt.difference(now).inMinutes;
+      return diff < 0 ? 0 : diff;
+    }
+
+    final diningMin = minutesForArea('dining');
+    final patioMin = minutesForArea('patio');
+
+    Map<String, dynamic> areaInfo(String groupGuid, int? minutes) {
+      final bucket = minutes == null ? const [0, 0] : _bucketTo5MinRange(minutes);
+      return {
+        'partiesAhead': waitlistsAhead.length,
+        'serviceAreaGroup': groupGuid,
+        'minutes': minutes,
+        'estimatedLowerBound': bucket[0],
+        'estimatedUpperBound': bucket[1],
+      };
+    }
 
     return {
-      'totalPartiesAhead': waiting,
-      'totalPartiesWaiting': waiting,
+      'totalPartiesAhead': waitlistsAhead.length,
+      'totalPartiesWaiting': waitlistsAhead.length,
       'partiesAheadByArea': [
-        areaInfo('area-dining', diningMinutes),
-        areaInfo('area-patio', patioMinutes),
+        areaInfo('area-dining', diningMin),
+        areaInfo('area-patio', patioMin),
       ],
     };
   }
