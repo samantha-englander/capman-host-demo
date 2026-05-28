@@ -218,14 +218,41 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'GET' && path.contains('availabilitiesV2')) return {
           'results': _timeSlotAvailabilities(),
         };
-    // configInfo: parseJson<ScheduleInfoDto> = {message, results: [ScheduleGroupDto]}
-    // Empty results = no schedule but no crash. Was returning a flat object
-    // with wrong field names, causing "Something went wrong" on the
-    // Create New Reservation screen.
-    if (method == 'GET' && path.contains('configInfo')) return {
-          'message': null,
-          'results': <dynamic>[],
-        };
+    // configInfo: parseJson<ScheduleInfoDto> drives both Create Reservation
+    // schedule context AND the Flow ("Covers") tab cap. CoversBloc looks up
+    // a matching Shift in defaultSchedule.configs for each slot and reads
+    // shift.maxCoversPerTimeslot — falling back to 0 if no shift matches
+    // (which is why an empty results showed "0 cap, everything red").
+    //
+    // Populate one all-day shift with the cap Sam wants: 15 covers / 15 min.
+    if (method == 'GET' && path.contains('configInfo')) {
+      Map<String, dynamic> shift(String guid, String name) => {
+        'guid': guid,
+        'name': name,
+        'hours': {
+          'enabled': true,
+          'start': '00:00:00.000',
+          'end': '23:59:00.000',
+        },
+        'maxCoversPerTimeslot': 15,
+        'timeSlotSize': 15,
+        'unavailableTables': <String>[],
+        'walkInOnlyTables': <String>[],
+      };
+      return {
+        'message': null,
+        'results': [
+          {
+            'defaultSchedule': {
+              'guid': 'sched-default',
+              'name': 'All Day',
+              'configs': [shift('shift-all-day', 'All Day')],
+            },
+            'experiences': <dynamic>[],
+          },
+        ],
+      };
+    }
     // Waitlist wait-time estimate — parsed via parseJsonList<WaitInfoDto>.
     // Real DTO from source:
     //   WaitInfoDto {totalPartiesAhead, totalPartiesWaiting, partiesAheadByArea}
@@ -411,7 +438,7 @@ class DemoMockInterceptor extends Interceptor {
       // ── Seated (currently at tables) ─────────────────────────────────────
       // Long-seated party: 80 min in → synthetic order state PAID (check
       // dropped, about to leave). Good for demoing the late-stage row UI.
-      _booking(guid: 'seat-1', type: 'RESERVATION', status: 'R_SEATED', partySize: 4,
+      _booking(guid: 'seat-1', type: 'RESERVATION', status: 'R_SEATED', partySize: 2,
           start: now.subtract(const Duration(minutes: 80)),
           tables: ['t-1'], areas: ['area-dining'],
           firstName: 'Jason', lastName: 'Mitchell', phone: '14085558123',
@@ -423,7 +450,7 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Vincent', lastName: 'Torres', phone: '16505556846',
           email: 'vincent.torres@fakemail.com',
           created: now.subtract(const Duration(hours: 3))),
-      _booking(guid: 'seat-3', type: 'RESERVATION', status: 'R_SEATED', partySize: 3,
+      _booking(guid: 'seat-3', type: 'RESERVATION', status: 'R_SEATED', partySize: 2,
           start: now.subtract(const Duration(minutes: 15)),
           tables: ['t-11'], areas: ['area-dining'],
           firstName: 'Judith', lastName: 'Thomas', phone: '12135557637',
@@ -431,13 +458,13 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(hours: 1))),
       // Second long-seated party: 85 min in → PAID. Spread the PAID parties
       // across rows so the floor plan shows variety.
-      _booking(guid: 'seat-4', type: 'RESERVATION', status: 'R_SEATED', partySize: 3,
+      _booking(guid: 'seat-4', type: 'RESERVATION', status: 'R_SEATED', partySize: 2,
           start: now.subtract(const Duration(minutes: 85)),
           tables: ['t-12'], areas: ['area-dining'],
           firstName: 'Beverly', lastName: 'Reed', phone: '16505559326',
           email: 'beverly.reed@fakemail.com',
           created: now.subtract(const Duration(hours: 4))),
-      _booking(guid: 'seat-5', type: 'RESERVATION', status: 'R_SEATED', partySize: 4,
+      _booking(guid: 'seat-5', type: 'RESERVATION', status: 'R_SEATED', partySize: 2,
           start: now.subtract(const Duration(minutes: 10)),
           tables: ['t-13'], areas: ['area-dining'],
           firstName: 'Jennifer', lastName: 'Evans', phone: '17185554858',
@@ -452,7 +479,7 @@ class DemoMockInterceptor extends Interceptor {
           notes: 'Anniversary dinner', occasion: 'ANNIVERSARY', vip: true),
       _booking(guid: 'seat-7', type: 'RESERVATION', status: 'R_SEATED', partySize: 2,
           start: now.subtract(const Duration(minutes: 5)),
-          tables: ['t-22'], areas: ['area-dining'],
+          tables: ['t-5'], areas: ['area-dining'],
           firstName: 'Kevin', lastName: 'Ramirez', phone: '16505553268',
           email: 'kevin.ramirez@fakemail.com',
           created: now.subtract(const Duration(hours: 2))),
@@ -478,7 +505,7 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 1)),
           arrivedAt: now.subtract(const Duration(minutes: 5)),
           notes: 'Celebrating a new job; hoping for a lively table in the main dining room.'),
-      _booking(guid: 'arr-2', type: 'RESERVATION', status: 'R_ARRIVED', partySize: 2,
+      _booking(guid: 'arr-2', type: 'RESERVATION', status: 'R_ARRIVED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 15))),
           tables: ['t-c1'], areas: ['area-dining'],
           firstName: 'Keith', lastName: 'Johnson', phone: '16505557677',
@@ -500,7 +527,7 @@ class DemoMockInterceptor extends Interceptor {
       // Wave 1 uses fresh available tables; Wave 2 reuses them once they've turned.
       // t-5/t-14/t-15/t-23: dining 4-tops | t-c1…t-c6: counter 2-tops
       // Patio tables (t-p3…t-p6) available for later waves.
-      _booking(guid: 'res-1', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
+      _booking(guid: 'res-1', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 6,
           start: _q(now.add(const Duration(minutes: 30))),
           tables: ['t-23'], areas: ['area-dining'], pinned: true,
           firstName: 'Sharon', lastName: 'Foster', phone: '17185554667',
@@ -521,7 +548,7 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Hannah', lastName: 'Lewis', phone: '16505554242',
           email: 'hannah.lewis@fakemail.com',
           created: now.subtract(const Duration(days: 4))),
-      _booking(guid: 'res-4', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-4', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 75))),
           tables: ['t-c2'], areas: ['area-dining'],
           firstName: 'William', lastName: 'Anderson', phone: '16505554714',
@@ -536,26 +563,26 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Sandra', lastName: 'Stewart', phone: '16505551694',
           email: 'sandra.stewart@fakemail.com',
           created: now.subtract(const Duration(days: 1))),
-      _booking(guid: 'res-6', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-6', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 105))),
           tables: ['t-c3'], areas: ['area-dining'],
           firstName: 'Brian', lastName: 'Campbell', phone: '17185550514',
           email: 'brian.campbell@fakemail.com',
           created: now.subtract(const Duration(days: 3))),
-      _booking(guid: 'res-7', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-7', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 120))),
           tables: ['t-c4'], areas: ['area-dining'],
           firstName: 'Diana', lastName: 'Sanchez', phone: '16505555727',
           email: 'diana.sanchez@fakemail.com',
           created: now.subtract(const Duration(days: 2))),
-      _booking(guid: 'res-8', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-8', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 135))),
           tables: ['t-c5'], areas: ['area-dining'], pinned: true,
           firstName: 'Rebecca', lastName: 'Green', phone: '19425555399',
           email: 'rebecca.green@fakemail.com',
           created: now.subtract(const Duration(days: 5)),
           notes: 'One diner has a shellfish allergy; careful preparation is essential.'),
-      _booking(guid: 'res-9', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-9', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 150))),
           tables: ['t-c6'], areas: ['area-dining'],
           firstName: 'Nathan', lastName: 'Hughes', phone: '17185552093',
@@ -585,7 +612,7 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 1)),
           notes: 'My son is having his 10th birthday; could we have a table near the window?',
           occasion: 'BIRTHDAY'),
-      _booking(guid: 'res-13', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-13', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 240))),
           tables: ['t-c2'], areas: ['area-dining'],   // frees from res-4 at +75+90=+165 ✓
           firstName: 'Jordan', lastName: 'Lee', phone: '16505551407',
@@ -593,30 +620,30 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 4))),
       _booking(guid: 'res-14', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 270))),
-          tables: ['t-23'], areas: ['area-dining'],   // frees from res-5 at +90+90=+180 ✓
+          tables: ['t-13'], areas: ['area-dining'],   // 2-pop dining 2-top; frees from seat-5 well before +270
           firstName: 'Samantha', lastName: 'Howard', phone: '19425550910',
           email: 'samantha.howard@fakemail.com',
           created: now.subtract(const Duration(days: 2))),
-      _booking(guid: 'res-15', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
+      _booking(guid: 'res-15', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 6,
           start: _q(now.add(const Duration(minutes: 300))),
           tables: ['t-21'], areas: ['area-dining'],   // frees from seat-6 which started -45min ✓
           firstName: 'Aaron', lastName: 'Gomez', phone: '19425554427',
           email: 'aaron.gomez@fakemail.com',
           created: now.subtract(const Duration(days: 1))),
-      _booking(guid: 'res-16', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-16', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 330))),
           tables: ['t-c3'], areas: ['area-dining'],   // frees from res-6 at +105+90=+195 ✓
           firstName: 'Bryan', lastName: 'White', phone: '17185550099',
           email: 'bryan.white@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
           notes: 'We have a tight schedule, aiming for a quick meal before the theater.'),
-      _booking(guid: 'res-17', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-17', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 360))),
           tables: ['t-c4'], areas: ['area-dining'],   // frees from res-7 at +120+90=+210 ✓
           firstName: 'Walter', lastName: 'Campbell', phone: '17185553091',
           email: 'walter.campbell@fakemail.com',
           created: now.subtract(const Duration(days: 5))),
-      _booking(guid: 'res-18', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'res-18', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: _q(now.add(const Duration(minutes: 390))),
           tables: ['t-c5'], areas: ['area-dining'],   // frees from res-8 at +135+90=+225 ✓
           firstName: 'Debra', lastName: 'Myers', phone: '16505553271',
@@ -642,13 +669,13 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Kyle', lastName: 'Cox', phone: '17185558283',
           email: 'kyle.cox@fakemail.com',
           created: now.subtract(const Duration(days: 3))),
-      _booking(guid: 'tmr-4', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'tmr-4', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 13, 30),
           tables: ['t-c1'], areas: ['area-dining'],
           firstName: 'Isaac', lastName: 'Carter', phone: '16505558775',
           email: 'isaac.carter@fakemail.com',
           created: now.subtract(const Duration(days: 4))),
-      _booking(guid: 'tmr-5', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'tmr-5', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 14, 0),
           tables: ['t-c2'], areas: ['area-dining'],
           firstName: 'Frank', lastName: 'Martinez', phone: '17185553441',
@@ -678,13 +705,13 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Gloria', lastName: 'Nguyen', phone: '17185555651',
           email: 'gloria.nguyen@fakemail.com',
           created: now.subtract(const Duration(days: 1))),
-      _booking(guid: 'tmr-10', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'tmr-10', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 16, 30),
           tables: ['t-c1'], areas: ['area-dining'],  // frees at 13:30+90=15:00 ✓
           firstName: 'Jonathan', lastName: 'Castillo', phone: '17185556136',
           email: 'jonathan.castillo@fakemail.com',
           created: now.subtract(const Duration(days: 4))),
-      _booking(guid: 'tmr-11', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
+      _booking(guid: 'tmr-11', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 6,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 17, 0),
           tables: ['t-23'], areas: ['area-dining'],
           firstName: 'Emily', lastName: 'Lee', phone: '16505552575',
@@ -716,7 +743,7 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Bobby', lastName: 'Peterson', phone: '17185559432',
           email: 'bobby.peterson@fakemail.com',
           created: now.subtract(const Duration(days: 6))),
-      _booking(guid: 'tmr-16', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'tmr-16', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 19, 30),
           tables: ['t-c3'], areas: ['area-dining'],
           firstName: 'Ashley', lastName: 'Gray', phone: '16505556351',
@@ -724,7 +751,7 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 2)),
           notes: 'Requesting a table with a view of the city skyline for our engagement.',
           occasion: 'CELEBRATION'),
-      _booking(guid: 'tmr-17', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'tmr-17', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 20, 0),
           tables: ['t-c4'], areas: ['area-dining'],
           firstName: 'Ruth', lastName: 'Lewis', phone: '17185557881',
@@ -745,7 +772,7 @@ class DemoMockInterceptor extends Interceptor {
           email: 'jacqueline.gray@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
           notes: 'One of our guests has a gluten intolerance; please advise on suitable menu items.'),
-      _booking(guid: 'tmr-20', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
+      _booking(guid: 'tmr-20', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 21, 30),
           tables: ['t-c5'], areas: ['area-dining'],
           firstName: 'Bruce', lastName: 'White', phone: '16505553588',
@@ -1582,6 +1609,32 @@ class DemoMockInterceptor extends Interceptor {
     final patio = allTables.where((t) =>
         (t['guid'] as String).startsWith('t-p')).map(tableAvail).toList();
 
+    // Pre-bucket current bookings by their slot start for the currentCovers
+    // calculation. Each bucket sums the party sizes of bookings that start
+    // within that 15-min window. Counted: anything that takes a seat today
+    // (R_CONFIRMED, R_ARRIVED, R_SEATED, W_*).
+    final coversBySlotMillis = <int, int>{};
+    for (final b in _bookings()) {
+      final s = b['bookingStatus'] as String?;
+      final counts = s == 'R_CONFIRMED' || s == 'R_ARRIVED' || s == 'R_SEATED'
+          || s == 'W_WAITING' || s == 'W_NOTIFIED' || s == 'W_SEATED';
+      if (!counts) continue;
+      final iso = b['expectedStartTime'] as String?;
+      if (iso == null) continue;
+      final dt = DateTime.tryParse(iso);
+      if (dt == null) continue;
+      // Round down to nearest 15-min boundary.
+      final bucket = DateTime(dt.year, dt.month, dt.day, dt.hour,
+          (dt.minute ~/ 15) * 15);
+      final key = bucket.millisecondsSinceEpoch;
+      final size = (b['partySize'] as int?) ?? 0;
+      coversBySlotMillis[key] = (coversBySlotMillis[key] ?? 0) + size;
+    }
+
+    // Cap matches the Shift's maxCoversPerTimeslot from configInfo so the
+    // Flow tab and the Create-Reservation picker agree.
+    const maxCoversPerSlot = 15;
+
     final slots = <Map<String, dynamic>>[];
     // Generate slots through 9pm tonight (close-out hour); each 15 min apart.
     DateTime cursor = start;
@@ -1589,6 +1642,7 @@ class DemoMockInterceptor extends Interceptor {
     while (cursor.isBefore(closeOut) || cursor.isAtSameMomentAs(closeOut)) {
       // Don't generate slots before noon.
       if (cursor.hour >= 11) {
+        final covers = coversBySlotMillis[cursor.millisecondsSinceEpoch] ?? 0;
         slots.add({
           'datetime': cursor.toIso8601String(),
           'serviceAreas': [
@@ -1608,9 +1662,9 @@ class DemoMockInterceptor extends Interceptor {
           'servicePeriodName': cursor.hour < 16 ? 'Lunch' : 'Dinner',
           'notInSlotSize': false,
           'slotSize': 15,
-          'violatesCoverFlow': false,
-          'currentCovers': 0,
-          'maxCoversPerTimeslot': 100,
+          'violatesCoverFlow': covers > maxCoversPerSlot,
+          'currentCovers': covers,
+          'maxCoversPerTimeslot': maxCoversPerSlot,
         });
       }
       cursor = cursor.add(const Duration(minutes: 15));
@@ -1640,16 +1694,18 @@ class DemoMockInterceptor extends Interceptor {
         _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
         _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 1, maxCap: 2),
         // Large round tables (5-6 each)
-        _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 6),
-        _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 6),
-        _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 6),
-        // Counter: 1-tops, max 2 (a couple sitting at adjacent stools)
-        _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-        _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-        _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-        _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-        _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-        _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
+        _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
+        _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 5, maxCap: 6),
+        // Counter: strictly 1-top per single stool. Couples (party of 2)
+        // must occupy a pair of adjacent stools — the smart algorithm
+        // generates those combos in _candidateCombos.
+        _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
+        _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 1),
         // Patio: 3-4 each, can't be pushed together
         _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
         _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 4),
@@ -1662,10 +1718,14 @@ class DemoMockInterceptor extends Interceptor {
   // ── Table states (OCCUPIED for seated tables, AVAILABLE for the rest) ─────
 
   List<Map<String, dynamic>> _tableStates() {
-    const occupied = {'t-1','t-2','t-11','t-12','t-13','t-21','t-22','t-p1','t-p2'};
+    // Mirrors the seeded R_SEATED bookings (seat-1..seat-9, minus seat-7
+    // which moved to t-5). t-22 is intentionally free — it's a 5-6 round
+    // with no party large enough seated right now.
+    const occupied = {'t-1','t-2','t-5','t-11','t-12','t-13','t-21','t-p1','t-p2'};
     // A few tables start DIRTY (recently bussed, awaiting reset) so the
-    // floor plan shows variety on load. One per area for visual spread.
-    const defaultDirty = {'t-14', 't-c4', 't-p3'};
+    // floor plan shows variety on load. Picked tables with no near-term
+    // booking so DIRTY doesn't immediately collide with an arrival.
+    const defaultDirty = {'t-22', 't-p3', 't-p4'};
     return _allTables().map((t) {
       final guid = t['guid'] as String;
       // Override map wins if the user marked the table DIRTY or made it
