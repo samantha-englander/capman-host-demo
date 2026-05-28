@@ -168,6 +168,25 @@
   </div>
 
   <script>
+    // Unregister any service workers from prior deploys. Flutter previously
+    // registered flutter_service_worker.js, which can outlive hard-reloads
+    // and cookie clears — it intercepts requests at the network layer and
+    // can serve a stale flutter_bootstrap.js (the file responsible for
+    // mounting Flutter into the tablet frame). Killing all SWs on every
+    // load guarantees the user is always running the freshest code.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(r) { r.unregister(); });
+      });
+      // Also nuke any caches the old SW may have populated.
+      if (window.caches && caches.keys) {
+        caches.keys().then(function(keys) {
+          keys.forEach(function(k) { caches.delete(k); });
+        });
+      }
+    }
+  </script>
+  <script>
     // Silently swallow Sentry telemetry calls. Sentry uses raw fetch so it
     // bypasses the Dart-side Dio interceptor; the 429s clutter DevTools and
     // (worse) hit Sentry's servers from customer machines during demos.
