@@ -51,9 +51,13 @@ echo "==> Patching flutter_bootstrap.js to mount Flutter inside tablet-frame hos
 # Flutter generates build/web/flutter_bootstrap.js with a bare _flutter.loader.load() call.
 # We replace it with the hostElement config so Flutter mounts into #flutter-host (the tablet
 # screen area) rather than the full browser viewport.
-if grep -q '_flutter\.loader\.load()' build/web/flutter_bootstrap.js; then
-  sed -i 's/_flutter\.loader\.load()/_flutter.loader.load({onEntrypointLoaded:async function(e){var a=await e.initializeEngine({hostElement:document.querySelector("#flutter-host")});await a.runApp();}})/g' build/web/flutter_bootstrap.js
-  echo "    OK — hostElement config injected."
+if grep -q '_flutter\.loader\.load();' build/web/flutter_bootstrap.js; then
+  # Match ONLY the entrypoint invocation (with trailing semicolon), no /g.
+  # Without these constraints, sed also rewrites internal references to
+  # _flutter.loader.load inside the inlined loader script, which causes
+  # Flutter to initialize TWICE (two engines mounting, frame breaks).
+  sed -i 's/_flutter\.loader\.load();/_flutter.loader.load({onEntrypointLoaded:async function(e){var a=await e.initializeEngine({hostElement:document.querySelector("#flutter-host")});await a.runApp();}});/' build/web/flutter_bootstrap.js
+  echo "    OK — hostElement config injected (single entrypoint)."
 else
   echo "    WARNING: expected pattern not found; trying legacy onEntrypointLoaded form..."
   # Fallback: append a small override script if the generated file uses a different form

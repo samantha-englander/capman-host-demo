@@ -131,8 +131,9 @@ class DemoMockInterceptor extends Interceptor {
   // ── Device ────────────────────────────────────────────────────────────────
 
   Map<String, dynamic> _deviceInfo() => {
-        'guid': 'demo-device-guid',
-        'deviceGuid': 'demo-device-guid',
+        // Numeric — Toast BigInt-parses device/management/restaurant guids.
+        'guid': '9000000000000001',
+        'deviceGuid': '9000000000000001',
         'token': 'demo-device-token',
         'apiToken': 'demo-device-token',
         'status': 'ACTIVE',
@@ -141,17 +142,17 @@ class DemoMockInterceptor extends Interceptor {
   // ── Management Group ──────────────────────────────────────────────────────
 
   Map<String, dynamic> _managementGroup() => {
-        'guid': 'demo-group-guid',
-        'managementGroupGuid': 'demo-group-guid',
+        'guid': '8000000000000001',
+        'managementGroupGuid': '8000000000000001',
         'name': 'Demo Group',
       };
 
   // ── Restaurant ────────────────────────────────────────────────────────────
 
   Map<String, dynamic> _restaurantDto() => {
-        'restaurantGuid': 'demo-restaurant-guid-1234',
+        'restaurantGuid': '7000000000000001',
         'name': 'The Demo Kitchen',
-        'managementGroupGuid': 'demo-group-guid',
+        'managementGroupGuid': '8000000000000001',
         'restaurantSetGuid': null,
       };
 
