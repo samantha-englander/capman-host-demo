@@ -8,6 +8,7 @@ class DemoFeatureFlagService implements FeatureFlagService {
     'nv1-waitlist-v2',
     'nv1-guest-on-site-indicator',
     'nv1-combined-floor-plan-view',
+    'nv1-home-tab-redesign',
   };
 
   @override

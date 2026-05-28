@@ -45,8 +45,11 @@ class DemoMockInterceptor extends Interceptor {
     if (path.contains('managementGroup')) return {'managementGroups': [_managementGroup()]};
 
     // Floor plan — parseJsonList → {"results": [...]}
+    // /tables must come before /serviceAreas to avoid the contains() overlap
     if (method == 'GET' && path.contains('serviceAreaGroups')) return {'results': _serviceAreaGroups()};
     if (method == 'GET' && path.contains('serviceAreas')) return {'results': _serviceAreaGeometries()};
+    if (method == 'GET' && path.contains('tableStates')) return {'results': _tableStates()};
+    if (method == 'GET' && (path.endsWith('/tables') || path.contains('/app/tables'))) return {'results': _allTables()};
 
     // Bookings — parseJsonList → {"results": [...]}
     if (method == 'GET' && path.endsWith('/bookings')) return {'results': _bookings()};
@@ -54,10 +57,17 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'PATCH' && path.contains('/booking/')) return {'results': <dynamic>[]};
     if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
 
+    // Blocks / orders / other booking endpoints that crash parseJsonList when unhandled
+    if (method == 'GET' && path.contains('/app/blocks')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
+
     // Roster — parseJsonList → {"results": [...]}
     if (method == 'GET' && path.contains('serverAssignment')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('shiftCutoff')) return {'results': <dynamic>[]};
-    if (method == 'GET' && path.contains('employee/list')) return {'results': <dynamic>[]};
+    if (method == 'GET' && path.contains('employee')) return {'results': _employees()};
+
+    // Guest tags (needed for tag icons in reservation list)
+    if (method == 'GET' && path.contains('guestTags')) return {'results': _guestTags()};
 
     // Guestbook
     if (method == 'GET' && path.contains('/guests')) return {'results': _guests()};
@@ -140,27 +150,8 @@ class DemoMockInterceptor extends Interceptor {
         {
           'guid': 'area-dining',
           'name': 'Dining Room',
-          'tables': [
-            _table('t-1',  name: '1',  top: 70,  left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-2',  name: '2',  top: 70,  left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-3',  name: '3',  top: 70,  left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-4',  name: '4',  top: 70,  left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-5',  name: '5',  top: 70,  left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-11', name: '11', top: 205, left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-12', name: '12', top: 205, left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-13', name: '13', top: 205, left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
-            _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
-            _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
-            _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
-            _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-            _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-            _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-            _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-            _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-            _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
-          ],
+          // ServiceAreaGeometry.tables is List<String> guids — full objects go to GET /tables
+          'tables': ['t-1','t-2','t-3','t-4','t-5','t-11','t-12','t-13','t-14','t-15','t-21','t-22','t-23','t-c1','t-c2','t-c3','t-c4','t-c5','t-c6'],
           'shapes': [
             _shape('border-counter', top: 55,  left: 828, w: 130, h: 545, type: 'BORDER'),
             _shape('label-counter', label: 'Counter', top: 280, left: 835, w: 115, h: 30, type: 'LABEL'),
@@ -169,14 +160,7 @@ class DemoMockInterceptor extends Interceptor {
         {
           'guid': 'area-patio',
           'name': 'Patio',
-          'tables': [
-            _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-            _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-            _table('t-p3', name: 'P3', top: 70,  left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-            _table('t-p4', name: 'P4', top: 240, left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-            _table('t-p5', name: 'P5', top: 240, left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-            _table('t-p6', name: 'P6', top: 240, left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
-          ],
+          'tables': ['t-p1','t-p2','t-p3','t-p4','t-p5','t-p6'],
           'shapes': [],
         },
       ];
@@ -793,10 +777,14 @@ class DemoMockInterceptor extends Interceptor {
           'guid': 'g-${p[1].replaceAll('+', '')}',
           'firstName': p[2],
           'lastName': p[3],
-          'phone': p[1],
+          'phoneNumber': p[1],
           'email': p[0],
-          'visitCount': 0,
-          'notes': null,
+          'bookingCount': 0,
+          'guestNotes': null,
+          'guestTags': <String>[],
+          'guestbookTagIds': <String>[],
+          'guestbookGuid': null,
+          'guestProfilesGuid': null,
         };
       }).toList();
 
@@ -853,15 +841,137 @@ class DemoMockInterceptor extends Interceptor {
       'arrivedTime': arrivedAt?.toIso8601String(),
       'toastPayEnabled': null,
       'paymentMandateId': null,
+      'specialOccasion': null,
       'guest': {
         'guid': 'g-${phone.replaceAll('+', '')}',
         'firstName': firstName,
         'lastName': lastName,
-        'phone': phone,
+        'phoneNumber': phone,
         'email': email.isNotEmpty ? email : null,
+        'bookingCount': 0,
+        'guestNotes': null,
+        'guestTags': <String>[],
+        'guestbookTagIds': <String>[],
+        'guestbookGuid': null,
+        'guestProfilesGuid': null,
       },
       'createdDate': created.toIso8601String(),
       'modifiedDate': created.toIso8601String(),
     };
   }
+
+  // ── Tables (flat list for GET /tables) ───────────────────────────────────
+
+  List<Map<String, dynamic>> _allTables() => [
+        _table('t-1',  name: '1',  top: 70,  left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-2',  name: '2',  top: 70,  left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-3',  name: '3',  top: 70,  left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-4',  name: '4',  top: 70,  left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-5',  name: '5',  top: 70,  left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-11', name: '11', top: 205, left: 25,  w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-12', name: '12', top: 205, left: 155, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-13', name: '13', top: 205, left: 285, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-14', name: '14', top: 205, left: 415, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-15', name: '15', top: 205, left: 540, w: 95,  h: 95,  type: 'SQUARE', minCap: 2, maxCap: 4),
+        _table('t-21', name: '21', top: 360, left: 25,  w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+        _table('t-22', name: '22', top: 360, left: 180, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+        _table('t-23', name: '23', top: 360, left: 540, w: 120, h: 120, type: 'CIRCLE', minCap: 4, maxCap: 8),
+        _table('t-c1', name: 'C1', top: 70,  left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-c2', name: 'C2', top: 160, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-c3', name: 'C3', top: 250, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-c4', name: 'C4', top: 365, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-c5', name: 'C5', top: 450, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-c6', name: 'C6', top: 535, left: 745, w: 60,  h: 60,  type: 'CIRCLE', minCap: 1, maxCap: 2),
+        _table('t-p1', name: 'P1', top: 70,  left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+        _table('t-p2', name: 'P2', top: 70,  left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+        _table('t-p3', name: 'P3', top: 70,  left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+        _table('t-p4', name: 'P4', top: 240, left: 30,  w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+        _table('t-p5', name: 'P5', top: 240, left: 200, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+        _table('t-p6', name: 'P6', top: 240, left: 370, w: 120, h: 120, type: 'SQUARE', minCap: 2, maxCap: 6),
+      ];
+
+  // ── Table states (OCCUPIED for seated tables, AVAILABLE for the rest) ─────
+
+  List<Map<String, dynamic>> _tableStates() {
+    const occupied = {'t-1','t-2','t-11','t-12','t-13','t-21','t-22','t-p1','t-p2'};
+    return _allTables().map((t) {
+      final guid = t['guid'] as String;
+      return <String, dynamic>{
+        'tableGuid': guid,
+        'state': occupied.contains(guid) ? 'OCCUPIED' : 'AVAILABLE',
+      };
+    }).toList();
+  }
+
+  // ── Employees (demo servers) ──────────────────────────────────────────────
+
+  List<Map<String, dynamic>> _employees() => [
+        {
+          'guid': 'emp-1',
+          'firstName': 'Alex',
+          'lastName': 'Rivera',
+          'serverColor': {'serverColor': '#E57373', 'textColor': '#FFFFFF'},
+          'onRoster': true,
+          'clockedIn': true,
+          'clockInRequired': false,
+          'permissions': 'HOST',
+        },
+        {
+          'guid': 'emp-2',
+          'firstName': 'Jordan',
+          'lastName': 'Park',
+          'serverColor': {'serverColor': '#64B5F6', 'textColor': '#FFFFFF'},
+          'onRoster': true,
+          'clockedIn': true,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+        {
+          'guid': 'emp-3',
+          'firstName': 'Taylor',
+          'lastName': 'Brooks',
+          'serverColor': {'serverColor': '#81C784', 'textColor': '#FFFFFF'},
+          'onRoster': true,
+          'clockedIn': true,
+          'clockInRequired': false,
+          'permissions': 'SERVER',
+        },
+      ];
+
+  // ── Guest tags ────────────────────────────────────────────────────────────
+
+  List<Map<String, dynamic>> _guestTags() => [
+        {
+          'tagGuid': 'tag-birthday',
+          'text': 'Birthday',
+          'shortText': 'BDAY',
+          'description': null,
+          'icon': 'birthday',
+          'type': 'OCCASION',
+        },
+        {
+          'tagGuid': 'tag-anniversary',
+          'text': 'Anniversary',
+          'shortText': 'ANN',
+          'description': null,
+          'icon': 'anniversary',
+          'type': 'OCCASION',
+        },
+        {
+          'tagGuid': 'tag-vip',
+          'text': 'VIP',
+          'shortText': 'VIP',
+          'description': null,
+          'icon': 'star',
+          'type': 'GUEST',
+        },
+        {
+          'tagGuid': 'tag-allergy',
+          'text': 'Allergy',
+          'shortText': 'ALRG',
+          'description': null,
+          'icon': 'allergy',
+          'type': 'DIETARY',
+        },
+      ];
 }
