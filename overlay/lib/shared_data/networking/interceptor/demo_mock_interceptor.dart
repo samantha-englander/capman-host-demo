@@ -100,6 +100,10 @@ class DemoMockInterceptor extends Interceptor {
     if (path.contains('appConfig')) return {'features': <String, dynamic>{}};
     if (method == 'POST' && path.contains('cloudSync')) return {'bookings': <dynamic>[]};
 
+    // Safe fallthrough: GET endpoints always return an empty results envelope so
+    // parseJsonList never crashes on unhandled paths. Mutations (POST/PATCH/DELETE)
+    // return an empty map — the app rarely parses mutation responses strictly.
+    if (method == 'GET') return {'results': <dynamic>[]};
     return <String, dynamic>{};
   }
 
