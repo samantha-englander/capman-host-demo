@@ -199,17 +199,10 @@ class DemoMockInterceptor extends Interceptor {
 
     // Create-reservation flow.
     //
-    // availabilitiesV2: parseJsonList<TimeSlotAvailability>
-    //   TimeSlotAvailability = {slots, bookableAvailabilityInfo, reservationsDisabled}
-    //   Empty slots = "no time slots" UI in the picker but no crash.
+    // availabilitiesV2: parseJsonList<TimeSlotAvailability>. Real slots are
+    // built from the floor plan tables so the picker shows pickable times.
     if (method == 'GET' && path.contains('availabilitiesV2')) return {
-          'results': [
-            {
-              'slots': <dynamic>[],
-              'bookableAvailabilityInfo': <dynamic>[],
-              'reservationsDisabled': false,
-            },
-          ],
+          'results': _timeSlotAvailabilities(),
         };
     // configInfo: parseJson<ScheduleInfoDto> = {message, results: [ScheduleGroupDto]}
     // Empty results = no schedule but no crash. Was returning a flat object
@@ -1150,41 +1143,100 @@ class DemoMockInterceptor extends Interceptor {
     };
   }
 
-  // ── Availabilities (time-slot picker in Create Reservation) ──────────────
+  // ── Time-slot availability (Create Reservation picker) ──────────────────
+  //
+  // Shape verified from source:
+  //   TimeSlotAvailability       {slots, bookableAvailabilityInfo, reservationsDisabled}
+  //   AppSlotAvailability        {datetime, serviceAreas, servicePeriodName,
+  //                               notInSlotSize, slotSize, violatesCoverFlow,
+  //                               currentCovers, maxCoversPerTimeslot}
+  //   AppServiceAreaAvailability {guid, name, tables, payment}
+  //   AppTableAvailability       {guid, name, minCapacity, maxCapacity,
+  //                               componentTables, existingBookings, isBlocked,
+  //                               invalidPartySize, inHouseReservationsDisabled}
+  //
+  // For a slot to register as "available" the app requires:
+  //   - shiftName != null
+  //   - notInSlotSize == false
+  //   - at least one service area with at least one available table
+  // For a table to be "available" all flags must be false and existingBookings empty.
 
-  List<Map<String, dynamic>> _availabilities() {
-    // Return half-hour slots covering the next 8 hours, rounded to :00/:30.
-    final slots = <Map<String, dynamic>>[];
+  /// Build a single TimeSlotAvailability covering :00/:15/:30/:45 boundaries
+  /// from the next quarter-hour boundary out to 9pm tonight. Wrapped in the
+  /// {results:[...]} envelope expected by parseJsonList<TimeSlotAvailability>.
+  List<Map<String, dynamic>> _timeSlotAvailabilities() {
     final now = DateTime.now();
-    for (int i = 1; i <= 16; i++) {
-      final raw = now.add(Duration(minutes: i * 30));
-      final slot = DateTime(raw.year, raw.month, raw.day, raw.hour,
-          raw.minute < 30 ? 0 : 30);
-      final timeStr =
-          '${slot.hour.toString().padLeft(2, '0')}:${slot.minute.toString().padLeft(2, '0')}:00';
-      slots.add({
-        'time': timeStr,
-        'available': true,
-        'serviceAreaGuids': ['area-dining', 'area-patio'],
-        'partySize': 2,
-      });
+    // Round up to next 15-min boundary.
+    final r = now.minute % 15;
+    DateTime start = r == 0
+        ? DateTime(now.year, now.month, now.day, now.hour, now.minute)
+        : DateTime(now.year, now.month, now.day, now.hour, now.minute)
+            .add(Duration(minutes: 15 - r));
+
+    // Build per-area table availability from the floor plan.
+    Map<String, dynamic> tableAvail(Map<String, dynamic> t) => {
+      'guid': t['guid'],
+      'name': t['name'],
+      'minCapacity': t['minCapacity'],
+      'maxCapacity': t['maxCapacity'],
+      'componentTables': <String>[],
+      'existingBookings': <String>[],
+      'isBlocked': false,
+      'invalidPartySize': false,
+      'inHouseReservationsDisabled': false,
+    };
+
+    final allTables = _allTables();
+    final dining = allTables.where((t) {
+      final g = t['guid'] as String;
+      // Anything starting with t- but NOT t-p (patio) is in the dining room.
+      return g.startsWith('t-') && !g.startsWith('t-p');
+    }).map(tableAvail).toList();
+    final patio = allTables.where((t) =>
+        (t['guid'] as String).startsWith('t-p')).map(tableAvail).toList();
+
+    final slots = <Map<String, dynamic>>[];
+    // Generate slots through 9pm tonight (close-out hour); each 15 min apart.
+    DateTime cursor = start;
+    final closeOut = DateTime(now.year, now.month, now.day, 21, 0);
+    while (cursor.isBefore(closeOut) || cursor.isAtSameMomentAs(closeOut)) {
+      // Don't generate slots before noon.
+      if (cursor.hour >= 11) {
+        slots.add({
+          'datetime': cursor.toIso8601String(),
+          'serviceAreas': [
+            {
+              'guid': 'area-dining',
+              'name': 'Dining Room',
+              'tables': dining,
+              'payment': null,
+            },
+            {
+              'guid': 'area-patio',
+              'name': 'Patio',
+              'tables': patio,
+              'payment': null,
+            },
+          ],
+          'servicePeriodName': cursor.hour < 16 ? 'Lunch' : 'Dinner',
+          'notInSlotSize': false,
+          'slotSize': 15,
+          'violatesCoverFlow': false,
+          'currentCovers': 0,
+          'maxCoversPerTimeslot': 100,
+        });
+      }
+      cursor = cursor.add(const Duration(minutes: 15));
     }
-    return slots;
+
+    return [
+      {
+        'slots': slots,
+        'bookableAvailabilityInfo': <dynamic>[],
+        'reservationsDisabled': false,
+      },
+    ];
   }
-
-  // ── Reservation config (per-date restaurant config) ───────────────────────
-
-  Map<String, dynamic> _configInfo() => {
-        'reservationsEnabled': true,
-        'waitlistEnabled': true,
-        'maxPartySize': 20,
-        'minPartySize': 1,
-        'slotDuration': 15,
-        'turnTime': 90,
-        'openTime': '11:00:00',
-        'closeTime': '22:00:00',
-        'timeZone': 'America/New_York',
-      };
 
   // ── Tables (flat list for GET /tables) ───────────────────────────────────
 
