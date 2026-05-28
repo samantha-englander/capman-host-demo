@@ -61,6 +61,10 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'GET' && path.contains('/app/blocks')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
 
+    // Create-reservation flow — availabilities time picker + per-date config
+    if (method == 'GET' && path.contains('availabilitiesV2')) return {'results': _availabilities()};
+    if (method == 'GET' && path.contains('configInfo')) return _configInfo();
+
     // Roster — parseJsonList → {"results": [...]}
     if (method == 'GET' && path.contains('serverAssignment')) return {'results': <dynamic>[]};
     if (method == 'GET' && path.contains('shiftCutoff')) return {'results': <dynamic>[]};
@@ -226,7 +230,7 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Julie', lastName: 'Anderson', phone: '12135553486',
           email: 'julie.anderson@fakemail.com',
           created: now.subtract(const Duration(hours: 5)),
-          notes: 'Anniversary dinner'),
+          notes: 'Anniversary dinner', occasion: 'ANNIVERSARY', vip: true),
       _booking(guid: 'seat-7', type: 'RESERVATION', status: 'R_SEATED', partySize: 2,
           start: now.subtract(const Duration(minutes: 5)),
           tables: ['t-22'], areas: ['area-dining'],
@@ -269,7 +273,8 @@ class DemoMockInterceptor extends Interceptor {
           email: 'angela.perez@fakemail.com',
           created: now.subtract(const Duration(hours: 6)),
           arrivedAt: now.subtract(const Duration(minutes: 2)),
-          notes: 'Celebrating a 50th wedding anniversary; a quiet, romantic table would be lovely.'),
+          notes: 'Celebrating a 50th wedding anniversary; a quiet, romantic table would be lovely.',
+          occasion: 'ANNIVERSARY'),
 
       // ── Upcoming today ────────────────────────────────────────────────────
       _booking(guid: 'res-1', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
@@ -278,7 +283,8 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Sharon', lastName: 'Foster', phone: '17185554667',
           email: 'sharon.foster@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
-          notes: "It's a surprise birthday for my friend; please no mention of it until dessert."),
+          notes: "It's a surprise birthday for my friend; please no mention of it until dessert.",
+          occasion: 'BIRTHDAY', vip: true),
       _booking(guid: 'res-2', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 45))),
           tables: ['t-3'], areas: ['area-dining'],
@@ -298,7 +304,8 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'William', lastName: 'Anderson', phone: '16505554714',
           email: 'william.anderson@fakemail.com',
           created: now.subtract(const Duration(days: 2)),
-          notes: "It's a surprise birthday for my friend; please no mention of it until dessert."),
+          notes: "It's a surprise birthday for my friend; please no mention of it until dessert.",
+          occasion: 'BIRTHDAY'),
       _booking(guid: 'res-5', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: _q(now.add(const Duration(minutes: 90))),
           tables: [], areas: [],
@@ -342,14 +349,16 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Lauren', lastName: 'Richardson', phone: '17185550419',
           email: 'lauren.richardson@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
-          notes: "We're celebrating a promotion; any chance of a complimentary dessert?"),
+          notes: "We're celebrating a promotion; any chance of a complimentary dessert?",
+          occasion: 'CELEBRATION'),
       _booking(guid: 'res-12', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: _q(now.add(const Duration(minutes: 210))),
           tables: [], areas: [],
           firstName: 'Timothy', lastName: 'Long', phone: '16505556561',
           email: 'timothy.long@fakemail.com',
           created: now.subtract(const Duration(days: 1)),
-          notes: 'My son is having his 10th birthday; could we have a table near the window?'),
+          notes: 'My son is having his 10th birthday; could we have a table near the window?',
+          occasion: 'BIRTHDAY'),
       _booking(guid: 'res-13', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 240))),
           tables: [], areas: [],
@@ -486,14 +495,16 @@ class DemoMockInterceptor extends Interceptor {
           firstName: 'Ashley', lastName: 'Gray', phone: '16505556351',
           email: 'ashley.gray@fakemail.com',
           created: now.subtract(const Duration(days: 2)),
-          notes: 'Requesting a table with a view of the city skyline for our engagement.'),
+          notes: 'Requesting a table with a view of the city skyline for our engagement.',
+          occasion: 'CELEBRATION'),
       _booking(guid: 'tmr-17', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 20, 0),
           tables: [], areas: [],
           firstName: 'Ruth', lastName: 'Lewis', phone: '17185557881',
           email: 'ruth.lewis@fakemail.com',
           created: now.subtract(const Duration(days: 4)),
-          notes: 'Any chance of a small candle for a birthday celebration on a dessert?'),
+          notes: 'Any chance of a small candle for a birthday celebration on a dessert?',
+          occasion: 'BIRTHDAY'),
       _booking(guid: 'tmr-18', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 20, 30),
           tables: [], areas: [],
@@ -815,6 +826,9 @@ class DemoMockInterceptor extends Interceptor {
     required DateTime created,
     String? notes,
     DateTime? arrivedAt,
+    // BIRTHDAY | ANNIVERSARY | DATE | BUSINESS | REUNION | CELEBRATION
+    String? occasion,
+    bool vip = false,
   }) {
     return {
       'guid': guid,
@@ -842,7 +856,8 @@ class DemoMockInterceptor extends Interceptor {
       'depositRefundableCancellationDatetime': null,
       'depositAmount': null,
       'visitNotes': notes,
-      'bookingNotes': null,
+      // bookingNotes mirrors visitNotes so the notes icon renders in the list
+      'bookingNotes': notes,
       'bookingSource': null,
       'bookableId': null,
       'requestedTable': <String>[],
@@ -851,7 +866,7 @@ class DemoMockInterceptor extends Interceptor {
       'arrivedTime': arrivedAt?.toIso8601String(),
       'toastPayEnabled': null,
       'paymentMandateId': null,
-      'specialOccasion': null,
+      'specialOccasion': occasion,
       'guest': {
         'guid': 'g-${phone.replaceAll('+', '')}',
         'firstName': firstName,
@@ -860,8 +875,9 @@ class DemoMockInterceptor extends Interceptor {
         'email': email.isNotEmpty ? email : null,
         'bookingCount': 0,
         'guestNotes': null,
-        'guestTags': <String>[],
-        'guestbookTagIds': <String>[],
+        'guestTags': vip ? ['tag-vip'] : <String>[],
+        'guestbookTagIds': vip ? ['tag-vip'] : <String>[],
+        'vipStatus': vip,
         'guestbookGuid': null,
         'guestProfilesGuid': null,
       },
@@ -869,6 +885,42 @@ class DemoMockInterceptor extends Interceptor {
       'modifiedDate': created.toIso8601String(),
     };
   }
+
+  // ── Availabilities (time-slot picker in Create Reservation) ──────────────
+
+  List<Map<String, dynamic>> _availabilities() {
+    // Return half-hour slots covering the next 8 hours, rounded to :00/:30.
+    final slots = <Map<String, dynamic>>[];
+    final now = DateTime.now();
+    for (int i = 1; i <= 16; i++) {
+      final raw = now.add(Duration(minutes: i * 30));
+      final slot = DateTime(raw.year, raw.month, raw.day, raw.hour,
+          raw.minute < 30 ? 0 : 30);
+      final timeStr =
+          '${slot.hour.toString().padLeft(2, '0')}:${slot.minute.toString().padLeft(2, '0')}:00';
+      slots.add({
+        'time': timeStr,
+        'available': true,
+        'serviceAreaGuids': ['area-dining', 'area-patio'],
+        'partySize': 2,
+      });
+    }
+    return slots;
+  }
+
+  // ── Reservation config (per-date restaurant config) ───────────────────────
+
+  Map<String, dynamic> _configInfo() => {
+        'reservationsEnabled': true,
+        'waitlistEnabled': true,
+        'maxPartySize': 20,
+        'minPartySize': 1,
+        'slotDuration': 15,
+        'turnTime': 90,
+        'openTime': '11:00:00',
+        'closeTime': '22:00:00',
+        'timeZone': 'America/New_York',
+      };
 
   // ── Tables (flat list for GET /tables) ───────────────────────────────────
 
