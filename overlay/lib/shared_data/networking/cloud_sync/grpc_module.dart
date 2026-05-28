@@ -33,10 +33,16 @@ abstract class GrpcModule {
     DeviceAuthInterceptor deviceAuth,
   ) => CloudSyncServiceClient(
     ClientChannel(
-      host,
+      // Route cloud-sync to localhost so it fails fast (connection refused)
+      // instead of trying TLS to ws-api.toasttab.com — which crashes in the
+      // browser with "Unsupported operation: SecurityContext constructor"
+      // and spams the console every ~10s.
+      'localhost',
+      port: 1,
       options: const ChannelOptions(
+        credentials: ChannelCredentials.insecure(),
         userAgent: 'toast-booking-host-app',
-        connectTimeout: Duration(seconds: 10),
+        connectTimeout: Duration(seconds: 1),
       ),
     ),
     options: CallOptions(

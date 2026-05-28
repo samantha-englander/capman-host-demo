@@ -168,6 +168,21 @@
   </div>
 
   <script>
+    // Silently swallow Sentry telemetry calls. Sentry uses raw fetch so it
+    // bypasses the Dart-side Dio interceptor; the 429s clutter DevTools and
+    // (worse) hit Sentry's servers from customer machines during demos.
+    (function() {
+      var origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        var url = (typeof input === 'string') ? input : (input && input.url) || '';
+        if (url.indexOf('sentry.io') !== -1) {
+          return Promise.resolve(new Response('', { status: 200 }));
+        }
+        return origFetch.apply(this, arguments);
+      };
+    })();
+  </script>
+  <script>
     var puns = [
       "Seating your experience...",
       "Adding you to the waitlist… just kidding.",

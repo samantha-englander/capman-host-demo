@@ -1,3 +1,4 @@
 _capman_host/
 node_modules/
 .DS_Store
+.claude/
