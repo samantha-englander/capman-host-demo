@@ -286,6 +286,18 @@ class DemoMockInterceptor extends Interceptor {
       if (_extraBookings.isEmpty) return {'results': <dynamic>[]};
       return {'results': [_extraBookings.last]};
     }
+    // POST /booking/notify — return the just-notified booking so the row
+    // flips to W_NOTIFIED / R_NOTIFIED with the countdown. _captureNotify
+    // already stamped _notifyTimes; this must run BEFORE the catch-all
+    // below or the UI sees an empty list and surfaces an error.
+    if (method == 'POST' && path.endsWith('/booking/notify')) {
+      if (_notifyTimes.isEmpty) return {'results': <dynamic>[]};
+      final lastGuid = _notifyTimes.entries.last.key;
+      for (final b in _bookings()) {
+        if (b['guid'] == lastGuid) return {'results': [b]};
+      }
+      return {'results': <dynamic>[]};
+    }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     if (method == 'PATCH' && path.contains('/booking/')) {
       final guid = path.split('/booking/').last.split('/').first;
@@ -315,19 +327,6 @@ class DemoMockInterceptor extends Interceptor {
       return {'results': found != null ? [found] : <dynamic>[]};
     }
     if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
-
-    // POST /booking/notify returns List<BookingDto> (the updated booking with
-    // status flipped to W_NOTIFIED / R_NOTIFIED and firstNotified stamped).
-    // _captureNotify already wired the override; find the most-recently-
-    // notified booking and return it.
-    if (method == 'POST' && path.endsWith('/booking/notify')) {
-      if (_notifyTimes.isEmpty) return {'results': <dynamic>[]};
-      final lastGuid = _notifyTimes.entries.last.key;
-      for (final b in _bookings()) {
-        if (b['guid'] == lastGuid) return {'results': [b]};
-      }
-      return {'results': <dynamic>[]};
-    }
 
     // PATCH /table/dirty and /table/makeAvailable return List<TableStateDto>.
     // _captureTableState already wrote the override; rebuild the full list.
