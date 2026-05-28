@@ -14,41 +14,124 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111315;
+    }
+
     body {
-      background-color: #0d0f11;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      overflow: hidden;
     }
 
+    /* ── Tablet frame ────────────────────────────────────────────────────── */
+    /*
+     * iPad Pro 12.9" landscape  →  1366 × 1024 logical px  (ratio ≈ 1.334)
+     *
+     * Width = min(96vw, 94vh × ratio)  — whichever fits the current window.
+     * Height follows via aspect-ratio, so the frame always preserves the
+     * iPad proportions and scales up on large screens.
+     */
+    .tablet-frame {
+      width: min(96vw, calc(94vh * 1.3340));
+      aspect-ratio: 1366 / 1024;
+      background: #1c1c1e;
+      border-radius: 22px;
+      /* outer ring + depth shadow */
+      box-shadow:
+        0 0 0 1px #3d3d3f,
+        0 0 0 3px #111315,
+        0 32px 80px rgba(0, 0, 0, 0.85),
+        0 6px 20px  rgba(0, 0, 0, 0.5);
+      padding: 13px 13px 20px;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    /* inset bezel sheen — subtle highlight on the inner edge */
+    .tablet-frame::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 22px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* front-facing camera — top-center (landscape orientation) */
+    .tablet-camera {
+      position: absolute;
+      top: 5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 7px;
+      height: 7px;
+      background: #2c2c2e;
+      border: 1px solid #3a3a3c;
+      border-radius: 50%;
+      z-index: 21;
+    }
+
+    /* iPad Pro home indicator (no physical button) */
+    .tablet-home {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      z-index: 21;
+    }
+
+    /* ── Flutter render target ───────────────────────────────────────────── */
+    /*
+     * Flutter mounts here. Its layout engine reads this element's
+     * dimensions, so the app thinks it is running on a ~1366×1024 surface.
+     */
+    #flutter-host {
+      width: 100%;
+      height: 100%;
+      border-radius: 11px;
+      overflow: hidden;
+      position: relative;
+      background: #16181c;
+    }
+
+    /* ── Loading splash ──────────────────────────────────────────────────── */
     #loading-card {
-      background: rgba(22, 24, 28, 0.97);
-      border-radius: 20px;
-      padding: 52px 44px 48px;
-      width: 360px;
+      position: absolute;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 32px;
+      justify-content: center;
+      gap: 28px;
+      background: #16181c;
+      border-radius: 11px;
       opacity: 1;
       transition: opacity 0.35s ease;
+      z-index: 50;
     }
 
-    #loading-card.fade-out { opacity: 0; }
+    #loading-card.fade-out { opacity: 0; pointer-events: none; }
 
     .logo-text {
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       color: #ffffff;
       letter-spacing: -0.4px;
     }
 
     .spinner {
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       border: 3px solid rgba(78, 205, 196, 0.2);
       border-top-color: #4ecdc4;
       border-radius: 50%;
@@ -61,19 +144,27 @@
       font-size: 13px;
       color: rgba(255, 255, 255, 0.45);
       text-align: center;
-      min-height: 18px;
+      max-width: 240px;
       transition: opacity 0.4s ease;
-      margin-top: -16px;
     }
 
     #pun.hidden { opacity: 0; }
   </style>
 </head>
 <body>
-  <div id="loading-card">
-    <span class="logo-text">Toast Tables</span>
-    <div class="spinner"></div>
-    <div id="pun">Seating your experience...</div>
+
+  <div class="tablet-frame">
+    <div class="tablet-camera"></div>
+
+    <div id="flutter-host">
+      <div id="loading-card">
+        <span class="logo-text">Toast Tables</span>
+        <div class="spinner"></div>
+        <div id="pun">Seating your experience...</div>
+      </div>
+    </div>
+
+    <div class="tablet-home"></div>
   </div>
 
   <script>
@@ -95,7 +186,7 @@
 
     function rotatePun() {
       punEl.classList.add('hidden');
-      setTimeout(function () {
+      setTimeout(function() {
         currentPun = (currentPun + 1) % puns.length;
         punEl.textContent = puns[currentPun];
         punEl.classList.remove('hidden');
@@ -104,15 +195,17 @@
 
     setInterval(rotatePun, 4500);
 
-    window.addEventListener('flutter-first-frame', function () {
+    window.addEventListener('flutter-first-frame', function() {
       var el = document.getElementById('loading-card');
       if (el) {
         el.classList.add('fade-out');
-        setTimeout(function () { el.remove(); }, 400);
+        setTimeout(function() { el.remove(); }, 400);
       }
     });
   </script>
 
-  <script src="flutter_bootstrap.js" async></script>
+  <!-- defer ensures #flutter-host exists before the bootstrap runs -->
+  <script src="flutter_bootstrap.js" defer></script>
+
 </body>
 </html>
