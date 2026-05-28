@@ -6,6 +6,12 @@ import 'package:injectable/injectable.dart';
 class DemoMockInterceptor extends Interceptor {
   final bool _isDemo;
 
+  // Session-scoped state: status overrides applied via PATCH endpoints.
+  // The interceptor is a @LazySingleton so this map survives across requests
+  // but resets when the page reloads — which is exactly what we want
+  // (status changes "stick" mid-demo, fresh state on every page load).
+  final Map<String, String> _statusOverrides = {};
+
   // In demo environment isProduction=false and isStaging=false — that's the
   // sole condition. debugFeaturesEnabled is intentionally false for demo so
   // the debug menu doesn't surface, so we can't use it as a gate here.
@@ -22,12 +28,55 @@ class DemoMockInterceptor extends Interceptor {
     final path = options.uri.path;
     // ignore: avoid_print
     print('[DEMO] $method $path');
+
+    // Side-effect: PATCH endpoints that change a booking's status update the
+    // override map so subsequent GET /bookings responses reflect the change.
+    if (method == 'PATCH' && path.contains('/booking/')) {
+      _captureStatusOverride(path, options.data);
+    }
+
     handler.resolve(Response(
       requestOptions: options,
       data: _respond(method, path),
       statusCode: 200,
       statusMessage: 'OK',
     ));
+  }
+
+  /// Inspect a booking-mutating PATCH and, if it represents a status change,
+  /// store the new wire-format status in [_statusOverrides] keyed by guid.
+  /// Endpoints + body schema verified from BookingServiceApi source.
+  void _captureStatusOverride(String path, dynamic body) {
+    final afterBooking = path.split('/booking/').last;
+    final guid = afterBooking.split('/').first;
+    if (guid.isEmpty) return;
+    // Waitlist bookings use the W_ wire prefix; reservations use R_.
+    final isWaitlist = guid.startsWith('wait-');
+    String r(String suffix) => isWaitlist ? 'W_$suffix' : 'R_$suffix';
+
+    String? newStatus;
+    if (path.endsWith('/statusV2')) {
+      // UpdateBookingStatusBody = { bookingStatus: '<wire-format>' }
+      if (body is Map && body['bookingStatus'] is String) {
+        newStatus = body['bookingStatus'] as String;
+      }
+    } else if (path.endsWith('/confirmV2')) {
+      newStatus = r('CONFIRMED');
+    } else if (path.endsWith('/noShowV2')) {
+      newStatus = r('NO_SHOW');
+    } else if (path.endsWith('/seatV2')) {
+      newStatus = r('SEATED');
+    } else if (path.endsWith('/unseatV2')) {
+      newStatus = r('CONFIRMED');
+    } else if (path.endsWith('/leftBuilding') || path.endsWith('/doneV2')) {
+      newStatus = r('DONE');
+    } else if (path.endsWith('/cancel')) {
+      newStatus = r('CANCELLED');
+    }
+
+    if (newStatus != null) {
+      _statusOverrides[guid] = newStatus;
+    }
   }
 
   dynamic _respond(String method, String path) {
@@ -231,7 +280,7 @@ class DemoMockInterceptor extends Interceptor {
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
 
-    return [
+    final list = <Map<String, dynamic>>[
       // ── Seated (currently at tables) ─────────────────────────────────────
       _booking(guid: 'seat-1', type: 'RESERVATION', status: 'R_SEATED', partySize: 4,
           start: now.subtract(const Duration(minutes: 35)),
@@ -604,6 +653,31 @@ class DemoMockInterceptor extends Interceptor {
           email: 'natalie.gonzales@fakemail.com',
           created: now.subtract(const Duration(minutes: 1))),
     ];
+
+    // Apply session status overrides set by PATCH endpoints. This is what
+    // makes status changes (e.g. Confirmed → Arrived) actually stick in the
+    // UI for the duration of the page session.
+    if (_statusOverrides.isNotEmpty) {
+      for (final b in list) {
+        final guid = b['guid'] as String?;
+        final override = _statusOverrides[guid];
+        if (override != null) {
+          b['bookingStatus'] = override;
+          // If status moved to ARRIVED, stamp an arrivedTime so the row UI
+          // shows the timestamp under the badge (matches what the app does
+          // when the real backend processes the change).
+          if (override.endsWith('_ARRIVED') && b['arrivedTime'] == null) {
+            b['arrivedTime'] = DateTime.now().toIso8601String();
+          }
+          // If moving to SEATED, stamp actualStartTime for the same reason.
+          if (override.endsWith('_SEATED') && b['actualStartTime'] == null) {
+            b['actualStartTime'] = DateTime.now().toIso8601String();
+          }
+        }
+      }
+    }
+
+    return list;
   }
 
   // ── Guestbook ─────────────────────────────────────────────────────────────
