@@ -56,6 +56,23 @@ class DemoMockInterceptor extends Interceptor {
   /// store the new wire-format status in [_statusOverrides] keyed by guid.
   /// Endpoints + body schema verified from BookingServiceApi source.
   void _captureStatusOverride(String path, dynamic body) {
+    // doneV2 / leftBuilding are batch endpoints — no guid in the path.
+    // Body = { bookingGuids: [...] } (verified from UpdateBookingsBody DTO).
+    // Without handling this, marking a SEATED table dirty closes the booking
+    // server-side but the floor plan keeps deriving SEATED from the unchanged
+    // booking status, so the table never repaints DIRTY.
+    if (path.endsWith('/doneV2') || path.endsWith('/leftBuilding')) {
+      if (body is Map && body['bookingGuids'] is List) {
+        for (final g in body['bookingGuids'] as List) {
+          if (g is String && g.isNotEmpty) {
+            final wire = g.startsWith('wait-') ? 'W_DONE' : 'R_DONE';
+            _statusOverrides[g] = wire;
+          }
+        }
+      }
+      return;
+    }
+
     final afterBooking = path.split('/booking/').last;
     final guid = afterBooking.split('/').first;
     if (guid.isEmpty) return;
@@ -77,8 +94,6 @@ class DemoMockInterceptor extends Interceptor {
       newStatus = r('SEATED');
     } else if (path.endsWith('/unseatV2')) {
       newStatus = r('CONFIRMED');
-    } else if (path.endsWith('/leftBuilding') || path.endsWith('/doneV2')) {
-      newStatus = r('DONE');
     } else if (path.endsWith('/cancel')) {
       newStatus = r('CANCELLED');
     }
@@ -828,6 +843,9 @@ class DemoMockInterceptor extends Interceptor {
           }
           if (override.endsWith('_SEATED') && b['actualStartTime'] == null) {
             b['actualStartTime'] = DateTime.now().toIso8601String();
+          }
+          if (override.endsWith('_DONE') && b['actualEndTime'] == null) {
+            b['actualEndTime'] = DateTime.now().toIso8601String();
           }
         }
         // Apply notify timestamp + bump notification count so the in-row
