@@ -18,6 +18,10 @@ class DemoMockInterceptor extends Interceptor {
   // smart-wait math) AND echoed back on the create call so the UI can navigate
   // into the new row. Cleared on page reload along with everything else.
   final List<Map<String, dynamic>> _extraBookings = [];
+  // Stashed by onRequest just before _respond() runs, so the doneV2/
+  // leftBuilding PATCH handler can echo back the exact bookings being
+  // closed (the guids live in the body, not the URL).
+  List<String> _lastBookingMutationGuids = const <String>[];
 
   // In demo environment isProduction=false and isStaging=false — that's the
   // sole condition. debugFeaturesEnabled is intentionally false for demo so
@@ -72,14 +76,17 @@ class DemoMockInterceptor extends Interceptor {
     // server-side but the floor plan keeps deriving SEATED from the unchanged
     // booking status, so the table never repaints DIRTY.
     if (path.endsWith('/doneV2') || path.endsWith('/leftBuilding')) {
+      final guids = <String>[];
       if (body is Map && body['bookingGuids'] is List) {
         for (final g in body['bookingGuids'] as List) {
           if (g is String && g.isNotEmpty) {
             final wire = g.startsWith('wait-') ? 'W_DONE' : 'R_DONE';
             _statusOverrides[g] = wire;
+            guids.add(g);
           }
         }
       }
+      _lastBookingMutationGuids = guids;
       return;
     }
 
@@ -300,6 +307,23 @@ class DemoMockInterceptor extends Interceptor {
     }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     if (method == 'PATCH' && path.contains('/booking/')) {
+      // Batch endpoints (doneV2 / leftBuilding) — guid lives in the body
+      // {bookingGuids: [...]}, not the URL. Without this branch the legacy
+      // path-split extractor would pull "doneV2" as the guid, find nothing,
+      // return an empty list — the bloc's `_updateBookings` would no-op, and
+      // the booking would stay SEATED in local state until the next 10s
+      // poll. That's the "long delay" on mark-dirty: the table flips DIRTY
+      // immediately (PATCH /table/dirty response merges), then the floor
+      // plan repaints from the still-SEATED booking and overwrites it.
+      // Returning the now-DONE bookings here lets the bloc merge instantly.
+      if (path.endsWith('/doneV2') || path.endsWith('/leftBuilding')) {
+        final guids = _lastBookingMutationGuids;
+        final updated = <Map<String, dynamic>>[];
+        for (final b in _bookings()) {
+          if (guids.contains(b['guid'])) updated.add(b);
+        }
+        return {'results': updated};
+      }
       final guid = path.split('/booking/').last.split('/').first;
       final all = _bookings();
       Map<String, dynamic>? found;
@@ -335,7 +359,19 @@ class DemoMockInterceptor extends Interceptor {
     }
 
     // Blocks / orders / other booking endpoints that crash parseJsonList when unhandled
-    if (method == 'GET' && path.contains('/app/blocks')) return {'results': <dynamic>[]};
+    // Blocks endpoints have TWO different response shapes:
+    //   GET /app/blocks            → List<BlockConfigMap> (.firstOrNull),
+    //                                each entry = {blockedConfigs: {dateStr: BlockConfig}}
+    //   GET /app/blocks/{date}     → List<BlockConfig> (flat list of blocks for that date)
+    // Returning [] for the no-date variant is technically safe (firstOrNull
+    // returns null) but the conventional "no blocks" payload is a single
+    // BlockConfigMap with empty map. Both variants get empty data here.
+    if (method == 'GET' && path.endsWith('/app/blocks')) {
+      return {'message': null, 'results': [{'blockedConfigs': <String, dynamic>{}}]};
+    }
+    if (method == 'GET' && path.contains('/app/blocks/')) {
+      return {'message': null, 'results': <dynamic>[]};
+    }
     if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
     // Order completion / linking — parsed as List<OrderDto>. Empty results is safe.
     if (method == 'PATCH' && path.contains('/orders/')) return {'results': <dynamic>[]};
@@ -372,7 +408,11 @@ class DemoMockInterceptor extends Interceptor {
         'message': null,
         'results': [
           {
-            'defaultSchedule': {
+            // ScheduleGroupDto uses @JsonKey(name: 'default') — the wire
+            // key must be "default", NOT "defaultSchedule". Returning the
+            // wrong key crashed the create-reservation sheet on deserialize
+            // with the "something went wrong" toast.
+            'default': {
               'guid': 'sched-default',
               'name': 'All Day',
               'configs': [shift('shift-all-day', 'All Day')],
