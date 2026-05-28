@@ -1,5 +1,6 @@
 import 'package:capman_host/di/env.dart';
 import 'package:capman_host/shared_data/networking/services/analytics/toast_analytics_service.dart';
+import 'package:capman_host/shared_data/services/demo_feature_flag_service.dart';
 import 'package:capman_host/shared_data/services/feature_flag_analytics_sync_service.dart';
 import 'package:capman_host/shared_data/services/feature_flag_service_launch_darkly.dart';
 import 'package:capman_host/shared_data/services/overridable_feature_flag_service.dart';
@@ -58,15 +59,7 @@ abstract class LaunchDarklyModule {
 
   @LazySingleton()
   @demo
-  FeatureFlagService provideDemoFeatureFlagService(
-    LDConfig ldConfig,
-    AppInfo appInfo,
-    AppConfigState appConfig,
-    PreferencesStorage preferencesStorage,
-  ) {
-    final ldService = FeatureFlagServiceLaunchDarkly(ldConfig, appInfo);
-    return OverridableFeatureFlagService(ldService, storage: preferencesStorage);
-  }
+  FeatureFlagService provideDemoFeatureFlagService() => DemoFeatureFlagService();
 
   @LazySingleton()
   FeatureFlagAnalyticsSyncService provideFeatureFlagAnalyticsSyncService(

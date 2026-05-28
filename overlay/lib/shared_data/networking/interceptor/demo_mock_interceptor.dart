@@ -2,9 +2,6 @@ import 'package:capman_host/shared_ui/bloc/app_config/app_config_state.dart';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
-// Registered for ALL environments (no @demo tag) so it can be injected into
-// dev+demo Dio clients. Only intercepts when isDemo is true (release build
-// with debugFeaturesEnabled=true, non-prod, non-staging).
 @LazySingleton()
 class DemoMockInterceptor extends Interceptor {
   final bool _isDemo;
@@ -103,7 +100,6 @@ class DemoMockInterceptor extends Interceptor {
       };
 
   // ── Restaurant ────────────────────────────────────────────────────────────
-  // RestaurantDto fields: restaurantGuid, name, managementGroupGuid?, restaurantSetGuid?
 
   Map<String, dynamic> _restaurantDto() => {
         'restaurantGuid': 'demo-restaurant-guid-1234',
@@ -111,9 +107,6 @@ class DemoMockInterceptor extends Interceptor {
         'managementGroupGuid': 'demo-group-guid',
         'restaurantSetGuid': null,
       };
-
-  // ── Restaurant Info ───────────────────────────────────────────────────────
-  // RestaurantInfoDto fields (all required non-null shown explicitly)
 
   Map<String, dynamic> _restaurantInfo() => {
         'timezone': 'America/New_York',
@@ -128,86 +121,126 @@ class DemoMockInterceptor extends Interceptor {
       };
 
   // ── Service Area Groups ───────────────────────────────────────────────────
-  // ServiceAreaGroup: name, guid, serviceAreas (List<String>), enabled
 
   List<Map<String, dynamic>> _serviceAreaGroups() => [
         {
           'guid': 'group-main',
           'name': 'All Areas',
-          'serviceAreas': ['area-main', 'area-bar', 'area-patio'],
+          'serviceAreas': ['area-dining', 'area-patio'],
           'enabled': true,
         },
       ];
 
   // ── Service Area Geometries ───────────────────────────────────────────────
-  // ServiceAreaGeometryServer: name?, guid, tables (List<String> GUIDs), shapes
+  // Matches real floor plan: Dining Room (1–5, 11–15, 21–23, C1–C6, Counter)
+  // and Patio (P1–P6).
+  // Shape fields: guid, label, top, left, width, height, type
+  // type = 'BOX' (table), 'BORDER' (wall/outline), 'LABEL' (text)
+  // tables list = GUIDs of BOX shapes only
 
   List<Map<String, dynamic>> _serviceAreaGeometries() => [
         {
-          'guid': 'area-main',
-          'name': 'Main Dining',
-          'tables': List.generate(10, (i) => 'table-main-${i + 1}'),
-          'shapes': <dynamic>[],
-        },
-        {
-          'guid': 'area-bar',
-          'name': 'Bar',
-          'tables': List.generate(4, (i) => 'table-bar-${i + 1}'),
-          'shapes': <dynamic>[],
+          'guid': 'area-dining',
+          'name': 'Dining Room',
+          'tables': [
+            't-1', 't-2', 't-3', 't-4', 't-5',
+            't-11', 't-12', 't-13', 't-14', 't-15',
+            't-21', 't-22', 't-23',
+            't-c1', 't-c2', 't-c3', 't-c4', 't-c5', 't-c6',
+          ],
+          'shapes': [
+            // ── Row 1: Tables 1–5 (square) ──
+            _box('t-1',  label: '1',  top: 70,  left: 25,  w: 95, h: 95),
+            _box('t-2',  label: '2',  top: 70,  left: 155, w: 95, h: 95),
+            _box('t-3',  label: '3',  top: 70,  left: 285, w: 95, h: 95),
+            _box('t-4',  label: '4',  top: 70,  left: 415, w: 95, h: 95),
+            _box('t-5',  label: '5',  top: 70,  left: 540, w: 95, h: 95),
+            // ── Row 2: Tables 11–15 (square) ──
+            _box('t-11', label: '11', top: 205, left: 25,  w: 95, h: 95),
+            _box('t-12', label: '12', top: 205, left: 155, w: 95, h: 95),
+            _box('t-13', label: '13', top: 205, left: 285, w: 95, h: 95),
+            _box('t-14', label: '14', top: 205, left: 415, w: 95, h: 95),
+            _box('t-15', label: '15', top: 205, left: 540, w: 95, h: 95),
+            // ── Row 3: Tables 21–23 (large round rendered as BOX) ──
+            _box('t-21', label: '21', top: 360, left: 25,  w: 120, h: 120),
+            _box('t-22', label: '22', top: 360, left: 180, w: 120, h: 120),
+            _box('t-23', label: '23', top: 360, left: 540, w: 120, h: 120),
+            // ── Counter seats C1–C6 (small) ──
+            _box('t-c1', label: 'C1', top: 70,  left: 745, w: 60, h: 60),
+            _box('t-c2', label: 'C2', top: 160, left: 745, w: 60, h: 60),
+            _box('t-c3', label: 'C3', top: 250, left: 745, w: 60, h: 60),
+            _box('t-c4', label: 'C4', top: 365, left: 745, w: 60, h: 60),
+            _box('t-c5', label: 'C5', top: 450, left: 745, w: 60, h: 60),
+            _box('t-c6', label: 'C6', top: 535, left: 745, w: 60, h: 60),
+            // ── Counter wall border ──
+            _shape('border-counter', top: 55,  left: 828, w: 130, h: 545, type: 'BORDER'),
+            // ── Counter label ──
+            _shape('label-counter', label: 'Counter', top: 280, left: 835, w: 115, h: 30, type: 'LABEL'),
+          ],
         },
         {
           'guid': 'area-patio',
           'name': 'Patio',
-          'tables': List.generate(6, (i) => 'table-patio-${i + 1}'),
-          'shapes': <dynamic>[],
+          'tables': ['t-p1', 't-p2', 't-p3', 't-p4', 't-p5', 't-p6'],
+          'shapes': [
+            // ── Row 1: P1–P3 ──
+            _box('t-p1', label: 'P1', top: 70,  left: 30,  w: 120, h: 120),
+            _box('t-p2', label: 'P2', top: 70,  left: 200, w: 120, h: 120),
+            _box('t-p3', label: 'P3', top: 70,  left: 370, w: 120, h: 120),
+            // ── Row 2: P4–P6 ──
+            _box('t-p4', label: 'P4', top: 240, left: 30,  w: 120, h: 120),
+            _box('t-p5', label: 'P5', top: 240, left: 200, w: 120, h: 120),
+            _box('t-p6', label: 'P6', top: 240, left: 370, w: 120, h: 120),
+          ],
         },
       ];
 
+  Map<String, dynamic> _box(String guid, {required String label, required int top, required int left, required int w, required int h}) =>
+      {'guid': guid, 'label': label, 'top': top, 'left': left, 'width': w, 'height': h, 'type': 'BOX'};
+
+  Map<String, dynamic> _shape(String guid, {String? label, required int top, required int left, required int w, required int h, required String type}) =>
+      {'guid': guid, 'label': label, 'top': top, 'left': left, 'width': w, 'height': h, 'type': type};
+
   // ── Bookings ──────────────────────────────────────────────────────────────
-  // BookingDto uses bookingType, bookingStatus (R_SEATED/R_CONFIRMED/W_WAITING),
-  // expectedStartTime/expectedEndTime, tables (GUIDs), serviceAreas (GUIDs), etc.
 
   List<Map<String, dynamic>> _bookings() {
     final now = DateTime.now();
-    final lastNames = ['Johnson', 'Smith', 'Williams', 'Brown', 'Garcia', 'Martinez', 'Davis', 'Wilson', 'Anderson', 'Taylor'];
-    final partySizes = [4, 2, 3, 6, 2, 4, 3, 2, 5, 3];
 
-    final reservations = List.generate(6, (i) {
-      final isSeated = i < 2;
-      final start = isSeated
-          ? now.subtract(Duration(minutes: 15 + i * 10))
-          : now.add(Duration(minutes: i * 15));
-      return _booking(
-        guid: 'res-${i + 1}',
-        bookingType: 'RESERVATION',
-        bookingStatus: isSeated ? 'R_SEATED' : 'R_CONFIRMED',
-        partySize: partySizes[i],
-        expectedStartTime: start,
-        tables: isSeated ? ['table-main-${i + 1}'] : [],
-        serviceAreas: isSeated ? ['area-main'] : [],
-        visitNotes: i == 1 ? 'Anniversary dinner' : null,
-        guestLastName: lastNames[i],
-        guestIndex: i,
-        createdAt: now.subtract(Duration(minutes: 60 + i * 30)),
-      );
-    });
+    // Seated guests — various tables, been here 5–60 min
+    final seated = [
+      _booking(guid: 'res-1',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 4, expectedStartTime: now.subtract(const Duration(minutes: 35)), tables: ['t-1'],  serviceAreas: ['area-dining'], guestLastName: 'Johnson',  guestIndex: 0,  createdAt: now.subtract(const Duration(hours: 2))),
+      _booking(guid: 'res-2',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 2, expectedStartTime: now.subtract(const Duration(minutes: 20)), tables: ['t-2'],  serviceAreas: ['area-dining'], guestLastName: 'Smith',    guestIndex: 1,  createdAt: now.subtract(const Duration(hours: 3)), visitNotes: 'Birthday dinner'),
+      _booking(guid: 'res-3',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 5, expectedStartTime: now.subtract(const Duration(minutes: 15)), tables: ['t-11'], serviceAreas: ['area-dining'], guestLastName: 'Williams', guestIndex: 2,  createdAt: now.subtract(const Duration(hours: 1))),
+      _booking(guid: 'res-4',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 3, expectedStartTime: now.subtract(const Duration(minutes: 50)), tables: ['t-12'], serviceAreas: ['area-dining'], guestLastName: 'Brown',    guestIndex: 3,  createdAt: now.subtract(const Duration(hours: 4))),
+      _booking(guid: 'res-5',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 4, expectedStartTime: now.subtract(const Duration(minutes: 10)), tables: ['t-13'], serviceAreas: ['area-dining'], guestLastName: 'Garcia',   guestIndex: 4,  createdAt: now.subtract(const Duration(hours: 1, minutes: 30))),
+      _booking(guid: 'res-6',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 6, expectedStartTime: now.subtract(const Duration(minutes: 45)), tables: ['t-21'], serviceAreas: ['area-dining'], guestLastName: 'Martinez', guestIndex: 5,  createdAt: now.subtract(const Duration(hours: 5)), visitNotes: 'Anniversary'),
+      _booking(guid: 'res-7',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 2, expectedStartTime: now.subtract(const Duration(minutes: 5)),  tables: ['t-22'], serviceAreas: ['area-dining'], guestLastName: 'Davis',    guestIndex: 6,  createdAt: now.subtract(const Duration(hours: 2))),
+      _booking(guid: 'res-8',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 3, expectedStartTime: now.subtract(const Duration(minutes: 25)), tables: ['t-p1'], serviceAreas: ['area-patio'],  guestLastName: 'Wilson',   guestIndex: 7,  createdAt: now.subtract(const Duration(hours: 1))),
+      _booking(guid: 'res-9',  bookingType: 'RESERVATION', bookingStatus: 'R_SEATED', partySize: 4, expectedStartTime: now.subtract(const Duration(minutes: 30)), tables: ['t-p2'], serviceAreas: ['area-patio'],  guestLastName: 'Anderson', guestIndex: 8,  createdAt: now.subtract(const Duration(hours: 2))),
+    ];
 
-    final waitlist = List.generate(4, (i) {
-      return _booking(
-        guid: 'wait-${i + 1}',
-        bookingType: 'WAITLIST',
-        bookingStatus: 'W_WAITING',
-        partySize: partySizes[i + 6],
-        expectedStartTime: now.add(Duration(minutes: (i + 1) * 10)),
-        tables: [],
-        serviceAreas: [],
-        guestLastName: lastNames[i + 6],
-        guestIndex: i + 6,
-        createdAt: now.subtract(Duration(minutes: 5 + i * 8)),
-      );
-    });
+    // Upcoming confirmed reservations
+    final upcoming = [
+      _booking(guid: 'res-10', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 10)),  tables: [], serviceAreas: [], guestLastName: 'Taylor',   guestIndex: 9,  createdAt: now.subtract(const Duration(days: 1))),
+      _booking(guid: 'res-11', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 20)),  tables: [], serviceAreas: [], guestLastName: 'Thomas',   guestIndex: 10, createdAt: now.subtract(const Duration(days: 2))),
+      _booking(guid: 'res-12', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 5, expectedStartTime: now.add(const Duration(minutes: 25)),  tables: [], serviceAreas: [], guestLastName: 'Jackson',  guestIndex: 11, createdAt: now.subtract(const Duration(hours: 6))),
+      _booking(guid: 'res-13', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 3, expectedStartTime: now.add(const Duration(minutes: 35)),  tables: [], serviceAreas: [], guestLastName: 'White',    guestIndex: 12, createdAt: now.subtract(const Duration(days: 3))),
+      _booking(guid: 'res-14', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 6, expectedStartTime: now.add(const Duration(minutes: 45)),  tables: [], serviceAreas: [], guestLastName: 'Harris',   guestIndex: 13, createdAt: now.subtract(const Duration(days: 1))),
+      _booking(guid: 'res-15', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 60)),  tables: [], serviceAreas: [], guestLastName: 'Lewis',    guestIndex: 14, createdAt: now.subtract(const Duration(days: 4))),
+      _booking(guid: 'res-16', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 75)),  tables: [], serviceAreas: [], guestLastName: 'Robinson', guestIndex: 15, createdAt: now.subtract(const Duration(days: 2))),
+      _booking(guid: 'res-17', bookingType: 'RESERVATION', bookingStatus: 'R_CONFIRMED', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 90)),  tables: [], serviceAreas: [], guestLastName: 'Clark',    guestIndex: 16, createdAt: now.subtract(const Duration(days: 1))),
+    ];
 
-    return [...reservations, ...waitlist];
+    // Waitlist
+    final waitlist = [
+      _booking(guid: 'wait-1', bookingType: 'WAITLIST', bookingStatus: 'W_WAITING', partySize: 3, expectedStartTime: now.add(const Duration(minutes: 15)), tables: [], serviceAreas: [], guestLastName: 'Rodriguez', guestIndex: 17, createdAt: now.subtract(const Duration(minutes: 12))),
+      _booking(guid: 'wait-2', bookingType: 'WAITLIST', bookingStatus: 'W_WAITING', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 25)), tables: [], serviceAreas: [], guestLastName: 'Lee',       guestIndex: 18, createdAt: now.subtract(const Duration(minutes: 8))),
+      _booking(guid: 'wait-3', bookingType: 'WAITLIST', bookingStatus: 'W_WAITING', partySize: 4, expectedStartTime: now.add(const Duration(minutes: 35)), tables: [], serviceAreas: [], guestLastName: 'Walker',    guestIndex: 19, createdAt: now.subtract(const Duration(minutes: 5))),
+      _booking(guid: 'wait-4', bookingType: 'WAITLIST', bookingStatus: 'W_WAITING', partySize: 2, expectedStartTime: now.add(const Duration(minutes: 40)), tables: [], serviceAreas: [], guestLastName: 'Hall',      guestIndex: 20, createdAt: now.subtract(const Duration(minutes: 3))),
+      _booking(guid: 'wait-5', bookingType: 'WAITLIST', bookingStatus: 'W_WAITING', partySize: 5, expectedStartTime: now.add(const Duration(minutes: 50)), tables: [], serviceAreas: [], guestLastName: 'Allen',     guestIndex: 21, createdAt: now.subtract(const Duration(minutes: 1))),
+    ];
+
+    return [...seated, ...upcoming, ...waitlist];
   }
 
   Map<String, dynamic> _booking({

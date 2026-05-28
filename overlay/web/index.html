@@ -24,7 +24,6 @@
       overflow: hidden;
     }
 
-    /* ── Card (matches the Flutter login card) ── */
     #loading-card {
       background: rgba(22, 24, 28, 0.97);
       border-radius: 20px;
@@ -33,67 +32,38 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0;
+      gap: 32px;
       opacity: 1;
       transition: opacity 0.35s ease;
     }
 
     #loading-card.fade-out { opacity: 0; }
 
-    /* ── Logo row ── */
-    .logo-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-
-    .logo-icon {
-      width: 36px;
-      height: 36px;
-      flex-shrink: 0;
-    }
-
     .logo-text {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 700;
       color: #ffffff;
-      letter-spacing: -0.3px;
+      letter-spacing: -0.4px;
     }
 
-    /* ── Subtitle ── */
-    .logo-subtitle {
-      font-size: 13px;
-      color: rgba(255,255,255,0.5);
-      text-align: center;
-      line-height: 1.5;
-      margin-bottom: 44px;
-      max-width: 260px;
-    }
-
-    /* ── Teal spinner ── */
     .spinner {
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
       border: 3px solid rgba(78, 205, 196, 0.2);
       border-top-color: #4ecdc4;
       border-radius: 50%;
       animation: spin 0.75s linear infinite;
-      margin-bottom: 24px;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Phrase ── */
     #pun {
       font-size: 13px;
       color: rgba(255, 255, 255, 0.45);
       text-align: center;
       min-height: 18px;
       transition: opacity 0.4s ease;
-      letter-spacing: 0.05px;
+      margin-top: -16px;
     }
 
     #pun.hidden { opacity: 0; }
@@ -101,27 +71,12 @@
 </head>
 <body>
   <div id="loading-card">
-
-    <!-- Logo (mirrors the Flutter login screen header) -->
-    <div class="logo-row">
-      <!-- Circle host icon — approximates the app icon -->
-      <svg class="logo-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="18" cy="18" r="17" stroke="white" stroke-width="1.8"/>
-        <circle cx="18" cy="13" r="4.5" fill="white"/>
-        <path d="M7 30 Q7 22 18 22 Q29 22 29 30" fill="white"/>
-      </svg>
-      <span class="logo-text">Toast Tables</span>
-    </div>
-
-    <div class="logo-subtitle">Waitlist, Reservation, and Capacity Management by Toast</div>
-
+    <span class="logo-text">Toast Tables</span>
     <div class="spinner"></div>
-
     <div id="pun">Seating your experience...</div>
   </div>
 
   <script>
-    // ── Pun rotation ──────────────────────────────────────────────────────────
     var puns = [
       "Seating your experience...",
       "Adding you to the waitlist… just kidding.",
@@ -149,7 +104,6 @@
 
     setInterval(rotatePun, 4500);
 
-    // ── Hide on first Flutter frame ───────────────────────────────────────────
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('loading-card');
       if (el) {

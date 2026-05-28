@@ -23,6 +23,8 @@ cp overlay/lib/features/session/data/demo_auth_service.dart \
    _capman_host/lib/features/session/data/demo_auth_service.dart
 cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
    _capman_host/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart
+cp overlay/lib/shared_data/services/demo_feature_flag_service.dart \
+   _capman_host/lib/shared_data/services/demo_feature_flag_service.dart
 cp overlay/lib/entry_point.dart         _capman_host/lib/entry_point.dart
 cp overlay/main_demo.dart               _capman_host/lib/main_demo.dart
 
