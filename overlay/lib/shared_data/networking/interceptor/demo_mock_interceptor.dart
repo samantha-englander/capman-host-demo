@@ -933,8 +933,10 @@ class DemoMockInterceptor extends Interceptor {
         'email': email.isNotEmpty ? email : null,
         'bookingCount': 0,
         'guestNotes': null,
-        'guestTags': vip ? ['tag-vip'] : <String>[],
-        'guestbookTagIds': vip ? ['tag-vip'] : <String>[],
+        // Reference the official VIP tag guid (from DefaultGuestTag enum)
+        // so bookings link to the same tag rendered by the guestTags endpoint.
+        'guestTags': vip ? [_vipTagGuid] : <String>[],
+        'guestbookTagIds': vip ? [_vipTagGuid] : <String>[],
         'vipStatus': vip,
         'guestbookGuid': null,
         'guestProfilesGuid': null,
@@ -1175,38 +1177,47 @@ class DemoMockInterceptor extends Interceptor {
 
   // ── Guest tags ────────────────────────────────────────────────────────────
 
+  // Official VIP tag guid from DefaultGuestTag enum in capman-host source.
+  // Using this exact value makes the app render the built-in VIP styling.
+  static const String _vipTagGuid = 'efea3d6a-9847-4beb-8bd3-964813bb32b8';
+
+  // GuestTagDto schema confirmed from source: tagGuid, text, shortText,
+  // description, icon (emoji string), type (DEFAULT | CUSTOM | AUTO).
+  // The `icon` field is a literal emoji character — the UI renders it
+  // verbatim. Sending name strings like "star" makes the badge show
+  // the word "star" instead of the icon.
   List<Map<String, dynamic>> _guestTags() => [
+        {
+          'tagGuid': _vipTagGuid,
+          'text': 'VIP',
+          'shortText': 'VIP',
+          'description': null,
+          'icon': '👑',
+          'type': 'DEFAULT',
+        },
         {
           'tagGuid': 'tag-birthday',
           'text': 'Birthday',
           'shortText': 'BDAY',
           'description': null,
-          'icon': 'birthday',
-          'type': 'OCCASION',
+          'icon': '🎂',
+          'type': 'CUSTOM',
         },
         {
           'tagGuid': 'tag-anniversary',
           'text': 'Anniversary',
           'shortText': 'ANN',
           'description': null,
-          'icon': 'anniversary',
-          'type': 'OCCASION',
-        },
-        {
-          'tagGuid': 'tag-vip',
-          'text': 'VIP',
-          'shortText': 'VIP',
-          'description': null,
-          'icon': 'star',
-          'type': 'GUEST',
+          'icon': '💝',
+          'type': 'CUSTOM',
         },
         {
           'tagGuid': 'tag-allergy',
           'text': 'Allergy',
           'shortText': 'ALRG',
           'description': null,
-          'icon': 'allergy',
-          'type': 'DIETARY',
+          'icon': '⚠️',
+          'type': 'CUSTOM',
         },
       ];
 }
