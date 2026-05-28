@@ -1261,6 +1261,39 @@ class DemoMockInterceptor extends Interceptor {
     return [lower < 0 ? 0 : lower, upper];
   }
 
+  /// Synthetic order state for a seated booking, derived from how long
+  /// they've been seated. Matches the natural progression of a meal:
+  ///   0-15 min  → IDLE      (just sat, haven't ordered)
+  ///   15-75 min → ORDERED   (food in progress)
+  ///   75+ min   → PAID      (check dropped, about to leave)
+  /// Deterministic so the same demo state produces the same estimate.
+  String _syntheticOrderState(Map<String, dynamic> booking, int elapsedMin) {
+    if (elapsedMin < 15) return 'IDLE';
+    if (elapsedMin < 75) return 'ORDERED';
+    return 'PAID';
+  }
+
+  /// Ports `estimateRemainingMinutes` from toast-booking's WaitlistTimeService.
+  ///   PAID/CLOSED/VOIDED → 5 min (PAID_FLOOR_MINUTES)
+  ///   ORDERED            → min(turnTime - elapsed, 75% of turnTime),
+  ///                        floored at 10 min
+  ///   IDLE / anything else → 75% of turnTime
+  int _remainingFromOrderState(String state, int elapsedMin, int turnTimeMin) {
+    final threeQuarter = (turnTimeMin * 0.75).round();
+    switch (state) {
+      case 'PAID':
+      case 'CLOSED':
+      case 'VOIDED':
+        return 5;
+      case 'ORDERED':
+        final progress = turnTimeMin - elapsedMin;
+        final capped = progress < threeQuarter ? progress : threeQuarter;
+        return capped < 10 ? 10 : capped;
+      default: // IDLE
+        return threeQuarter;
+    }
+  }
+
   Map<String, dynamic> _smartWaitEstimate(int partySize) {
     final now = DateTime.now();
     final allBookings = _bookings();
@@ -1273,17 +1306,29 @@ class DemoMockInterceptor extends Interceptor {
     }
     for (final b in allBookings) {
       final status = b['bookingStatus'] as String?;
-      final blocks = status == 'R_SEATED'
-          || status == 'W_SEATED'
-          || status == 'R_ARRIVED'
-          || status == 'R_CONFIRMED';
-      if (!blocks) continue;
+      final isSeated = status == 'R_SEATED' || status == 'W_SEATED';
+      final isUpcoming = status == 'R_ARRIVED' || status == 'R_CONFIRMED';
+      if (!isSeated && !isUpcoming) continue;
       final startIso = (b['actualStartTime'] as String?)
           ?? (b['expectedStartTime'] as String?);
       if (startIso == null) continue;
       final start = DateTime.tryParse(startIso);
       if (start == null) continue;
-      final end = start.add(const Duration(minutes: 90));
+      var end = start.add(const Duration(minutes: 90));
+      // For currently-SEATED parties, apply the order-state push-out (mirrors
+      // toast-booking's adjustExpectedEndTimes). Push-out only extends end
+      // time forward, never pulls it in. For upcoming reservations there's
+      // no order yet so the straight start + turn-time applies.
+      if (isSeated) {
+        final elapsedMin = now.difference(start).inMinutes;
+        final remaining = _remainingFromOrderState(
+          _syntheticOrderState(b, elapsedMin),
+          elapsedMin,
+          90,
+        );
+        final adjusted = now.add(Duration(minutes: remaining));
+        if (adjusted.isAfter(end)) end = adjusted;
+      }
       if (end.isBefore(now)) continue;
       final tables = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
       for (final g in tables) {
