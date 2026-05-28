@@ -19,8 +19,6 @@ cp overlay/lib/shared_data/networking/cloud_sync/grpc_module.dart \
    _capman_host/lib/shared_data/networking/cloud_sync/grpc_module.dart
 cp overlay/web/index.html \
    _capman_host/web/index.html
-cp overlay/web/flutter_bootstrap.js \
-   _capman_host/web/flutter_bootstrap.js
 cp overlay/lib/features/session/data/demo_auth_service.dart \
    _capman_host/lib/features/session/data/demo_auth_service.dart
 cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
@@ -48,6 +46,33 @@ flutter build web \
   --target lib/main_demo.dart \
   --release \
   --base-href /capman-host-demo/
+
+echo "==> Patching flutter_bootstrap.js to mount Flutter inside tablet-frame host element..."
+# Flutter generates build/web/flutter_bootstrap.js with a bare _flutter.loader.load() call.
+# We replace it with the hostElement config so Flutter mounts into #flutter-host (the tablet
+# screen area) rather than the full browser viewport.
+if grep -q '_flutter\.loader\.load()' build/web/flutter_bootstrap.js; then
+  sed -i 's/_flutter\.loader\.load()/_flutter.loader.load({config:{hostElement:document.querySelector("#flutter-host")}})/g' build/web/flutter_bootstrap.js
+  echo "    OK — hostElement config injected."
+else
+  echo "    WARNING: expected pattern not found; trying legacy onEntrypointLoaded form..."
+  # Fallback: append a small override script if the generated file uses a different form
+  cat >> build/web/flutter_bootstrap.js << 'ENDPATCH'
+
+// Demo tablet-frame patch: re-run loader with hostElement if not already set
+if (window._flutter && window._flutter.loader) {
+  window._flutter.loader.load({
+    onEntrypointLoaded: async function(engineInitializer) {
+      const appRunner = await engineInitializer.initializeEngine({
+        hostElement: document.querySelector('#flutter-host'),
+      });
+      await appRunner.runApp();
+    }
+  });
+}
+ENDPATCH
+  echo "    Appended fallback hostElement patch."
+fi
 
 echo "==> Patching login button text for demo..."
 sed -i 's/Login with your Toast account/Start Demo/g' build/web/main.dart.js
