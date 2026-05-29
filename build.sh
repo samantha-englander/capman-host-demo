@@ -95,6 +95,6 @@ sed -i 's/Login with your Toast account/Start Demo/g' build/web/main.dart.js
 
 echo "==> Patching 'Trouble logging in?' link to 'Learn More' + new URL..."
 sed -i 's/Trouble logging in?/Learn More/g' build/web/main.dart.js
-sed -i 's|https://support.toasttab.com/en/article/Get-Help-with-Toast-Tables-Issues-Logging-in-to-the-Toast-Tables-App|https://pos.toasttab.com/products/toast-tables?srsltid=AfmBOoprX-L7Kv3iGlHQ8fyY4HBw61BFTEzDEiOD-l240sIyku9QG7Pz|g' build/web/main.dart.js
+sed -i 's|https://support.toasttab.com/en/article/Get-Help-with-Toast-Tables-Issues-Logging-in-to-the-Toast-Tables-App|https://pos.toasttab.com/products/toast-tables?srsltid=AfmBOopilVglmSYpG6S4hAgRkLWdrRT3FlGWRs3wA42VLGqR2zk6OtBb|g' build/web/main.dart.js
 
 echo "==> Done. Output: _capman_host/build/web/"
