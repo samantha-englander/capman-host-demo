@@ -11,6 +11,12 @@ class DemoMockInterceptor extends Interceptor {
   // but reset when the page reloads — which is exactly what we want
   // (changes "stick" mid-demo, fresh state on every page load).
   final Map<String, String> _statusOverrides = {};        // booking guid → status
+  // booking guid → tables (e.g. seatV2/moveV2 assign a party to a new table).
+  // Without this, "Seat walk-in" flips status to SEATED but the booking's
+  // tables stay [] (it was created as a waitlist) — so the floor plan's
+  // seatedBookingsByTable lookup finds no entry for the dropped table and
+  // the table tile stays empty.
+  final Map<String, List<String>> _tableAssignmentOverrides = {};
   final Map<String, DateTime> _notifyTimes = {};          // booking guid → firstNotified
   final Map<String, String> _tableStateOverrides = {};    // table guid → state
   // Bookings created mid-session via POST /booking/{waitlist,reservation}.
@@ -116,8 +122,21 @@ class DemoMockInterceptor extends Interceptor {
       newStatus = r('NO_SHOW');
     } else if (path.endsWith('/seatV2')) {
       newStatus = r('SEATED');
+      // Body shape (BookingTableRequestBody): {tableGuids: [...], employeeGuid}
+      if (body is Map && body['tableGuids'] is List) {
+        final tbls = (body['tableGuids'] as List).whereType<String>().toList();
+        if (tbls.isNotEmpty) _tableAssignmentOverrides[guid] = tbls;
+      }
+    } else if (path.endsWith('/moveV2')) {
+      // Move-table action — same body shape as seatV2; only the tables
+      // change (status stays SEATED).
+      if (body is Map && body['tableGuids'] is List) {
+        final tbls = (body['tableGuids'] as List).whereType<String>().toList();
+        if (tbls.isNotEmpty) _tableAssignmentOverrides[guid] = tbls;
+      }
     } else if (path.endsWith('/unseatV2')) {
       newStatus = r('CONFIRMED');
+      _tableAssignmentOverrides.remove(guid);
     } else if (path.endsWith('/cancel')) {
       newStatus = r('CANCELLED');
     }
@@ -1108,9 +1127,18 @@ class DemoMockInterceptor extends Interceptor {
     // Apply session status overrides set by PATCH endpoints. This is what
     // makes status changes (e.g. Confirmed → Arrived) actually stick in the
     // UI for the duration of the page session.
-    if (_statusOverrides.isNotEmpty || _notifyTimes.isNotEmpty) {
+    if (_statusOverrides.isNotEmpty ||
+        _notifyTimes.isNotEmpty ||
+        _tableAssignmentOverrides.isNotEmpty) {
       for (final b in list) {
         final guid = b['guid'] as String?;
+        // Table-assignment override from seatV2/moveV2. Without applying
+        // this the booking renders as SEATED but with empty `tables`, so
+        // the floor plan never connects it to the dropped table tile.
+        final newTables = _tableAssignmentOverrides[guid];
+        if (newTables != null) {
+          b['tables'] = newTables;
+        }
         final override = _statusOverrides[guid];
         if (override != null) {
           b['bookingStatus'] = override;
