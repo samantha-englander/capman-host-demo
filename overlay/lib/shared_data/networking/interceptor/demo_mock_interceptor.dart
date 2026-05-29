@@ -17,6 +17,12 @@ class DemoMockInterceptor extends Interceptor {
   // seatedBookingsByTable lookup finds no entry for the dropped table and
   // the table tile stays empty.
   final Map<String, List<String>> _tableAssignmentOverrides = {};
+  // booking guid → bookingType. Walk-ins are POSTed to /booking/waitlist
+  // (typed WAITLIST) and then immediately seatV2'd onto a table. The
+  // floor plan's seatedBookingsByTable filter excludes WAITLIST-typed
+  // bookings, so a seated walk-in stays invisible on the table tile
+  // until we also promote its bookingType to RESERVATION.
+  final Map<String, String> _bookingTypeOverrides = {};
   final Map<String, DateTime> _notifyTimes = {};          // booking guid → firstNotified
   final Map<String, String> _tableStateOverrides = {};    // table guid → state
   // Bookings created mid-session via POST /booking/{waitlist,reservation}.
@@ -121,7 +127,15 @@ class DemoMockInterceptor extends Interceptor {
     } else if (path.endsWith('/noShowV2')) {
       newStatus = r('NO_SHOW');
     } else if (path.endsWith('/seatV2')) {
-      newStatus = r('SEATED');
+      // Seating a walk-in: the host first POSTed /booking/waitlist
+      // (synthesized as WAITLIST/W_WAITING) and is now seatV2'ing it.
+      // Force R_SEATED + RESERVATION type so the floor plan picks it up.
+      // Real waitlist guids (wait-*) become W_SEATED — same as before.
+      final isWaitGuid = guid.startsWith('wait-');
+      newStatus = isWaitGuid ? 'W_SEATED' : 'R_SEATED';
+      if (!isWaitGuid) {
+        _bookingTypeOverrides[guid] = 'RESERVATION';
+      }
       // Body shape (BookingTableRequestBody): {tableGuids: [...], employeeGuid}
       if (body is Map && body['tableGuids'] is List) {
         final tbls = (body['tableGuids'] as List).whereType<String>().toList();
@@ -1129,7 +1143,8 @@ class DemoMockInterceptor extends Interceptor {
     // UI for the duration of the page session.
     if (_statusOverrides.isNotEmpty ||
         _notifyTimes.isNotEmpty ||
-        _tableAssignmentOverrides.isNotEmpty) {
+        _tableAssignmentOverrides.isNotEmpty ||
+        _bookingTypeOverrides.isNotEmpty) {
       for (final b in list) {
         final guid = b['guid'] as String?;
         // Table-assignment override from seatV2/moveV2. Without applying
@@ -1138,6 +1153,11 @@ class DemoMockInterceptor extends Interceptor {
         final newTables = _tableAssignmentOverrides[guid];
         if (newTables != null) {
           b['tables'] = newTables;
+        }
+        // Type override (WAITLIST → RESERVATION on walk-in seat).
+        final newType = _bookingTypeOverrides[guid];
+        if (newType != null) {
+          b['bookingType'] = newType;
         }
         final override = _statusOverrides[guid];
         if (override != null) {
