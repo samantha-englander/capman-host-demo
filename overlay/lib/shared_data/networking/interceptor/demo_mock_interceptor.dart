@@ -57,6 +57,13 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
       _captureTableState(path, options.data);
     }
+    // Undo (snackbar "Undo" tap after dirty/done) — POST /booking/{guid}/undoBookingStatus.
+    // Reverts the last state mutation: clear the status override (so the
+    // booking falls back to its seeded/prior status) and clear table-state
+    // overrides for the tables that booking was sitting on.
+    if (method == 'POST' && path.endsWith('/undoBookingStatus')) {
+      _captureUndo(path);
+    }
 
     handler.resolve(Response(
       requestOptions: options,
@@ -132,6 +139,67 @@ class DemoMockInterceptor extends Interceptor {
     _notifyTimes[guid] = DateTime.now();
   }
 
+  /// Undo (snackbar) — POST /booking/{guid}/undoBookingStatus. The app fires
+  /// this when the host taps "Undo" after marking a seated table dirty.
+  /// Roll back BOTH the booking-status override (so it returns to R_SEATED)
+  /// AND any table-state overrides on the tables that booking sat on.
+  void _captureUndo(String path) {
+    // /booking/v2/app/booking/{guid}/undoBookingStatus
+    final segments = path.split('/');
+    final idx = segments.indexOf('booking');
+    String? guid;
+    // Find the segment after the last "booking" path component.
+    for (int i = segments.length - 1; i > 0; i--) {
+      if (segments[i] == 'undoBookingStatus' && i - 1 >= 0) {
+        guid = segments[i - 1];
+        break;
+      }
+    }
+    if (guid == null || guid.isEmpty || guid == idx.toString()) return;
+    _statusOverrides.remove(guid);
+    _notifyTimes.remove(guid);
+    // Find the booking's tables in the seeded list (without overrides) so
+    // we can clear DIRTY/AVAILABLE overrides that were applied alongside.
+    for (final b in _bookings()) {
+      if (b['guid'] == guid) {
+        final tables = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
+        for (final t in tables) {
+          _tableStateOverrides.remove(t);
+        }
+        break;
+      }
+    }
+  }
+
+  /// Auto-pick a non-conflicting table combo for a new booking when the host
+  /// didn't pick one. Walks the same combos the smart-wait engine uses
+  /// (2-tops push for 4, etc.) and returns the first combo with no overlap
+  /// (90-min turn) against existing bookings around [start].
+  List<String> _autoAssignForNewBooking(int partySize, DateTime start) {
+    final end = start.add(const Duration(minutes: 90));
+    final all = _bookings();
+    bool free(String guid) {
+      for (final b in all) {
+        final s = b['bookingStatus'] as String?;
+        if (s == 'R_CANCELLED' || s == 'R_NO_SHOW' || s == 'R_DONE' ||
+            s == 'W_CANCELLED' || s == 'W_DONE') continue;
+        final tables = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
+        if (!tables.contains(guid)) continue;
+        final bStart = DateTime.tryParse(b['expectedStartTime'] as String? ?? '');
+        if (bStart == null) continue;
+        final bEnd = bStart.add(const Duration(minutes: 90));
+        if (start.isBefore(bEnd) && end.isAfter(bStart)) return false;
+      }
+      return true;
+    }
+    for (final area in const ['dining', 'patio']) {
+      for (final combo in _candidateCombos(partySize, area)) {
+        if (combo.every(free)) return combo;
+      }
+    }
+    return const <String>[];
+  }
+
   /// Create-booking endpoints (POST /booking/waitlist | /booking/reservation).
   /// Body shapes verified from NewWaitListBody / NewReservationBody DTOs:
   ///   waitlist:    {partySize, serviceAreaGuids, dateTime, bookingNotes,
@@ -145,7 +213,7 @@ class DemoMockInterceptor extends Interceptor {
     final isWaitlist = path.endsWith('/waitlist');
     final guid = 'demo-${DateTime.now().microsecondsSinceEpoch}';
     final partySize = (body['partySize'] as int?) ?? 2;
-    final tables = ((body['tableGuids'] as List?) ?? const [])
+    final userPickedTables = ((body['tableGuids'] as List?) ?? const [])
         .whereType<String>()
         .toList();
     final areas = ((body['serviceAreaGuids'] as List?) ?? const [])
@@ -185,6 +253,16 @@ class DemoMockInterceptor extends Interceptor {
           'guestProfilesGuid': null,
         };
 
+    // Reservations only auto-assign — waitlist entries stay un-tabled
+    // (they're waiting). If the host didn't pick a table, ask the engine
+    // for a non-conflicting combo and DO NOT pin (requestedTable empty);
+    // a host pick is the only thing that pins.
+    final bool userChose = userPickedTables.isNotEmpty;
+    List<String> assignedTables = userPickedTables;
+    if (!isWaitlist && !userChose) {
+      assignedTables = _autoAssignForNewBooking(partySize, start);
+    }
+
     final now = DateTime.now();
     final newBooking = <String, dynamic>{
       'guid': guid,
@@ -195,7 +273,7 @@ class DemoMockInterceptor extends Interceptor {
       'expectedEndTime': start.add(const Duration(minutes: 90)).toIso8601String(),
       'actualStartTime': null,
       'actualEndTime': null,
-      'tables': tables,
+      'tables': assignedTables,
       'serviceAreas': areas.isEmpty ? <String>['area-dining'] : areas,
       'serviceAreaGroup': null,
       'requestedServiceAreaGroups': <String>[],
@@ -215,7 +293,10 @@ class DemoMockInterceptor extends Interceptor {
       'bookingNotes': notes.isEmpty ? null : notes,
       'bookingSource': null,
       'bookableId': body['bookableId'],
-      'requestedTable': tables,  // host-assigned at create time
+      // Only pin (populate requestedTable) when the host explicitly picked
+      // a table during creation. Auto-assigned bookings stay unpinned so
+      // the system can shuffle them later.
+      'requestedTable': userChose ? assignedTables : <String>[],
       'paymentConfigType': null,
       'paymentConfigSnapshot': null,
       'arrivedTime': null,
@@ -302,6 +383,19 @@ class DemoMockInterceptor extends Interceptor {
       final lastGuid = _notifyTimes.entries.last.key;
       for (final b in _bookings()) {
         if (b['guid'] == lastGuid) return {'results': [b]};
+      }
+      return {'results': <dynamic>[]};
+    }
+    // POST /booking/{guid}/undoBookingStatus — return the now-restored
+    // booking (override was cleared in onRequest). Without echoing the
+    // restored booking, the bloc has nothing to merge and the row stays
+    // in its post-done state — clicking Undo did "nothing."
+    if (method == 'POST' && path.endsWith('/undoBookingStatus')) {
+      final segs = path.split('/');
+      final idx = segs.indexOf('undoBookingStatus');
+      final guid = idx > 0 ? segs[idx - 1] : '';
+      for (final b in _bookings()) {
+        if (b['guid'] == guid) return {'results': [b]};
       }
       return {'results': <dynamic>[]};
     }
@@ -1024,6 +1118,14 @@ class DemoMockInterceptor extends Interceptor {
           }
           if (override.endsWith('_DONE') && b['actualEndTime'] == null) {
             b['actualEndTime'] = DateTime.now().toIso8601String();
+          }
+          // Cancel actions need a cancelledTime stamp + dismissToHistory
+          // flip — otherwise the booking sits in the active list looking
+          // half-cancelled. This was the "reservations I make myself
+          // aren't properly canceling" symptom.
+          if (override.endsWith('_CANCELLED')) {
+            b['cancelledTime'] ??= DateTime.now().toIso8601String();
+            b['dismissToHistory'] = true;
           }
         }
         // Apply notify timestamp + bump notification count so the in-row
