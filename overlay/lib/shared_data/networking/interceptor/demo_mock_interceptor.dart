@@ -23,6 +23,24 @@ class DemoMockInterceptor extends Interceptor {
   // bookings, so a seated walk-in stays invisible on the table tile
   // until we also promote its bookingType to RESERVATION.
   final Map<String, String> _bookingTypeOverrides = {};
+  // Tables the host has explicitly blocked via the floor-plan menu. Feeds
+  // the BlockConfig response so capman-host's BlockConfigRepository picks
+  // up the change. Kept as a flat set — demo is single-day so we don't
+  // bother with per-date partitioning.
+  final Set<String> _blockedTables = <String>{};
+
+  /// BlockConfig DTO carrying the live blocked-table set. Shape verified
+  /// against capman-host BlockConfig: all flags + name/reason + the two
+  /// lists. timeBasedConfigs stays empty (we only do all-day blocks).
+  Map<String, dynamic> _currentBlockConfig() => {
+    'onlineWaitlistBlocked': false,
+    'onlineReservationsBlocked': false,
+    'hostReservationsBlocked': false,
+    'name': '',
+    'blockedReason': '',
+    'blockedTables': _blockedTables.toList(),
+    'timeBasedConfigs': <dynamic>[],
+  };
   final Map<String, DateTime> _notifyTimes = {};          // booking guid → firstNotified
   final Map<String, String> _tableStateOverrides = {};    // table guid → state
   // Bookings created mid-session via POST /booking/{waitlist,reservation}.
@@ -68,6 +86,33 @@ class DemoMockInterceptor extends Interceptor {
     }
     if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
       _captureTableState(path, options.data);
+    }
+    // Block / unblock tables (POSTs under /booking/v1/app/blocks/...). The
+    // floor-plan "Block" menu fires this; without capturing it the BlockConfig
+    // stream never updates and the tile never paints as blocked. (Also the
+    // generic /booking/ catch-all returned {results:[]} which crashed the
+    // bloc with "Bad state: No element" → "something went wrong" toast.)
+    if (method == 'POST' && path.contains('/app/blocks/blockTables/')) {
+      if (options.data is Map && options.data['blockTables'] is List) {
+        for (final t in options.data['blockTables'] as List) {
+          if (t is String && t.isNotEmpty) _blockedTables.add(t);
+        }
+      }
+    }
+    if (method == 'POST' && path.contains('/app/blocks/unblockTables/')) {
+      if (options.data is Map && options.data['unblockTables'] is List) {
+        for (final t in options.data['unblockTables'] as List) {
+          if (t is String) _blockedTables.remove(t);
+        }
+      }
+    }
+    // Unblock-from-details posts the full BlockConfig to /app/blockConfig/{date}.
+    if (method == 'POST' && path.contains('/app/blockConfig/')) {
+      if (options.data is Map && options.data['blockedTables'] is List) {
+        _blockedTables
+          ..clear()
+          ..addAll((options.data['blockedTables'] as List).whereType<String>());
+      }
     }
     // Undo (snackbar "Undo" tap after dirty/done) — POST /booking/{guid}/undoBookingStatus.
     // Reverts the last state mutation: clear the status override (so the
@@ -503,27 +548,19 @@ class DemoMockInterceptor extends Interceptor {
       return {'message': null, 'results': [{'blockedConfigs': <String, dynamic>{}}]};
     }
     if (method == 'GET' && path.contains('/app/blocks/')) {
-      // Empty results was crashing the main bloc — somewhere downstream
-      // does `list.first` (we saw "Bad state: No element" in early logs)
-      // and a missing first emission breaks the combine7 stream the floor
-      // plan reads from, so table-state updates never trigger a repaint
-      // until the next full poll cycle (the 10s delay on mark-dirty).
-      // Return one neutral BlockConfig that satisfies .first but blocks
-      // nothing — all flags false, all collections empty.
-      return {
-        'message': null,
-        'results': [
-          {
-            'onlineWaitlistBlocked': false,
-            'onlineReservationsBlocked': false,
-            'hostReservationsBlocked': false,
-            'name': '',
-            'blockedReason': '',
-            'blockedTables': <String>[],
-            'timeBasedConfigs': <dynamic>[],
-          },
-        ],
-      };
+      // One BlockConfig carrying the live _blockedTables set so the floor
+      // plan's isBlocked derivation finds blocked guids. Empty list still
+      // works (satisfies the downstream `.first` that was crashing).
+      return {'message': null, 'results': [_currentBlockConfig()]};
+    }
+    // Block/unblock POSTs — onRequest already updated _blockedTables.
+    // Respond with the same List<BlockConfig> shape the bloc expects
+    // (parseJsonList<BlockConfig> → reads {results:[...]} envelope).
+    if (method == 'POST' &&
+        (path.contains('/app/blocks/blockTables/') ||
+         path.contains('/app/blocks/unblockTables/') ||
+         path.contains('/app/blockConfig/'))) {
+      return {'message': null, 'results': [_currentBlockConfig()]};
     }
     if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
     // Order completion / linking — parsed as List<OrderDto>. Empty results is safe.
