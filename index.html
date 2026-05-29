@@ -149,6 +149,25 @@
     }
 
     #pun.hidden { opacity: 0; }
+
+    /* Build sha + timestamp, fixed bottom-left of the viewport (outside
+     * the tablet frame). Lets you confirm at a glance which deploy is
+     * live — no need to inspect gh-pages. The placeholder gets sed-
+     * replaced by build.sh; if you ever see "95ff184" you're
+     * looking at unbuilt source. */
+    #build-badge {
+      position: fixed;
+      bottom: 8px;
+      left: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.3px;
+      user-select: text;
+      z-index: 100;
+      pointer-events: auto;
+    }
+    #build-badge:hover { color: rgba(255, 255, 255, 0.75); }
   </style>
 </head>
 <body>
@@ -166,6 +185,8 @@
 
     <div class="tablet-home"></div>
   </div>
+
+  <div id="build-badge">build 95ff184 · 2026-05-29 16:22 UTC</div>
 
   <script>
     // Unregister any service workers from prior deploys. Flutter previously
