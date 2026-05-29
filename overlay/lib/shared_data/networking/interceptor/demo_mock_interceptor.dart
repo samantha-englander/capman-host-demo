@@ -100,6 +100,17 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
       _captureTableState(path, options.data);
     }
+    // POST /booking/batchGet — stash the bookingGuids body so the response
+    // handler can echo the requested bookings (rather than ignoring body).
+    if (method == 'POST' && path.endsWith('/booking/batchGet')) {
+      final guids = <String>[];
+      if (options.data is Map && options.data['bookingGuids'] is List) {
+        for (final g in options.data['bookingGuids'] as List) {
+          if (g is String && g.isNotEmpty) guids.add(g);
+        }
+      }
+      _lastBookingMutationGuids = guids;
+    }
     // Block / unblock tables (POSTs under /booking/v1/app/blocks/...). The
     // floor-plan "Block" menu fires this; without capturing it the BlockConfig
     // stream never updates and the tile never paints as blocked. (Also the
@@ -554,8 +565,14 @@ class DemoMockInterceptor extends Interceptor {
     // already stamped _notifyTimes; this must run BEFORE the catch-all
     // below or the UI sees an empty list and surfaces an error.
     if (method == 'POST' && path.endsWith('/booking/notify')) {
+      // Guard against `.last` on an empty map (would throw "Bad state: No
+      // element") in any replay / debug scenario where notify fires without
+      // a prior capture.
       if (_notifyTimes.isEmpty) return {'results': <dynamic>[]};
-      final lastGuid = _notifyTimes.entries.last.key;
+      String? lastGuid;
+      for (final k in _notifyTimes.keys) {
+        lastGuid = k;  // last insertion wins (Dart Map preserves order)
+      }
       for (final b in _bookings()) {
         if (b['guid'] == lastGuid) return {'results': [b]};
       }
@@ -586,9 +603,14 @@ class DemoMockInterceptor extends Interceptor {
       return {'results': <dynamic>[]};
     }
     // POST /booking/batchGet — body has {bookingGuids:[...]}, response is
-    // a list of bookings. Used by push-notification handlers.
+    // a list of bookings. Used by push-notification handlers. Use the
+    // _lastBookingMutationGuids stash (set in onRequest for batch endpoints)
+    // so the response actually contains the requested bookings.
     if (method == 'POST' && path.endsWith('/booking/batchGet')) {
-      return {'results': <dynamic>[]};  // body not in scope here; safe empty
+      final guids = _lastBookingMutationGuids;
+      if (guids.isEmpty) return {'results': <dynamic>[]};
+      final matches = _bookings().where((b) => guids.contains(b['guid'])).toList();
+      return {'results': matches};
     }
     // POST /booking/{guid}/sendDepositReminderV2 — fire-and-forget.
     if (method == 'POST' && path.endsWith('/sendDepositReminderV2')) {
@@ -834,8 +856,49 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
-    // SMS threads — must return {"results":[]} not a raw list (fixes TypeError on floor plan load)
-    if (path.contains('smsThread')) return {'results': <dynamic>[]};
+    // SMS threads — synthesize one thread per notified booking so the
+    // host's "Notify guest" action produces a visible outbound message
+    // when the host opens the messages screen. Shape verified from
+    // SmsThreadDto / SmsMessageDto. Envelope stays wrapped — raw list
+    // form caused a TypeError on floor-plan load.
+    if (path.contains('smsThread')) {
+      final threads = <Map<String, dynamic>>[];
+      final allBookings = _bookings();
+      _notifyTimes.forEach((bookingGuid, notifiedAt) {
+        final booking = allBookings.firstWhere(
+          (b) => b['guid'] == bookingGuid,
+          orElse: () => <String, dynamic>{},
+        );
+        if (booking.isEmpty) return;
+        final firstName = (booking['guest'] is Map)
+            ? ((booking['guest'] as Map)['firstName'] ?? '') as String
+            : '';
+        threads.add({
+          'bookingGuid': bookingGuid,
+          'smsThreadId': 'sms-$bookingGuid',
+          'pinned': false,
+          'unreadSmsMessageCount': 0,
+          'messages': [
+            {
+              'guid': 'msg-$bookingGuid-1',
+              'message': firstName.isEmpty
+                  ? 'Your table is ready! Please head to the host stand.'
+                  : 'Hi $firstName, your table is ready! Please head to the host stand.',
+              'createdDate': notifiedAt.toIso8601String(),
+              'source': 'HOST',
+            },
+          ],
+        });
+      });
+      return {'results': threads};
+    }
+    // sendSmsMessage / markSmsThreadRead / hasPinnedMessageThread — succeed
+    // silently. (The bloc rebuilds threads on next /smsThreads poll.)
+    if (path.contains('sendSmsMessage') ||
+        path.contains('markSmsThreadRead') ||
+        path.contains('hasPinnedMessageThread')) {
+      return {'results': <dynamic>[]};
+    }
     // Waitlist/reservation notify — succeed silently so UI completes the flow
     if (path.contains('notify')) return {'results': <dynamic>[]};
     // experiences: parseJson<ExperienceInfoDto> = {message, results: [[ExperienceDto]]}
@@ -1383,10 +1446,13 @@ class DemoMockInterceptor extends Interceptor {
         if (newType != null) {
           b['bookingType'] = newType;
         }
-        // Change-server override (employeeGuid → server stub).
+        // Change-server override. BookingDto.server is String? (employee
+        // guid), NOT a nested object — writing a Map here type-fails on
+        // the next /bookings parse and bricks the floor plan after any
+        // "Change Server" action.
         final emp = _serverOverrides[guid];
         if (emp != null) {
-          b['server'] = {'guid': emp, 'firstName': '', 'lastName': ''};
+          b['server'] = emp;
         }
         final override = _statusOverrides[guid];
         if (override != null) {
