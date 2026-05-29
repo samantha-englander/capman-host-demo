@@ -28,6 +28,19 @@ class DemoMockInterceptor extends Interceptor {
   // up the change. Kept as a flat set — demo is single-day so we don't
   // bother with per-date partitioning.
   final Set<String> _blockedTables = <String>{};
+  // Audit fixes ─────────────────────────────────────────────────────────
+  // Guests created mid-session (POST /guest/) — synthesized + echoed back.
+  final List<Map<String, dynamic>> _extraGuests = [];
+  // Edits applied to existing guests via PATCH /guest/{guid} or /tag.
+  // Field-level merge into the guestbook on every /guests poll.
+  final Map<String, Map<String, dynamic>> _guestOverrides = {};
+  // Edits applied to existing bookings via PATCH /booking/{guid}/reservation
+  // or /waitlist. Merged onto the booking in the override loop. Without this
+  // the edit sheet "saves" and the row snaps back on the next poll.
+  final Map<String, Map<String, dynamic>> _bookingEditOverrides = {};
+  // Server assignment from PATCH /booking/{guid}/serverV2 — body has
+  // {employeeGuid}; we stash it and rebuild the server object on read.
+  final Map<String, String> _serverOverrides = {};
 
   /// BlockConfig DTO carrying the live blocked-table set. Shape verified
   /// against capman-host BlockConfig: all flags + name/reason + the two
@@ -112,6 +125,90 @@ class DemoMockInterceptor extends Interceptor {
         _blockedTables
           ..clear()
           ..addAll((options.data['blockedTables'] as List).whereType<String>());
+      }
+    }
+    // ── Audit fixes — capture phase ──────────────────────────────────
+    // PATCH /guest/{guid} or /guest/{guid}/tag — guest edits / tag toggle.
+    // Without capture, default response is {} which crashes parseJsonList.
+    if (method == 'PATCH' && path.contains('/app/guest/')) {
+      final body = options.data;
+      if (body is Map) {
+        final segs = path.split('/');
+        final gIdx = segs.indexOf('guest');
+        // Guid is the segment after "guest" (skip /tag suffix).
+        final guid = (gIdx >= 0 && gIdx + 1 < segs.length) ? segs[gIdx + 1] : '';
+        if (guid.isNotEmpty) {
+          final existing = _guestOverrides[guid] ?? <String, dynamic>{};
+          existing.addAll(body.cast<String, dynamic>());
+          _guestOverrides[guid] = existing;
+        }
+      }
+    }
+    // POST /guest/ — create new guest (used by add-reservation flow before
+    // the booking POST fires). Synthesize and stash.
+    if (method == 'POST' && path.endsWith('/app/guest/') &&
+        options.data is Map) {
+      final body = (options.data as Map).cast<String, dynamic>();
+      final guid = 'g-${DateTime.now().microsecondsSinceEpoch}';
+      _extraGuests.add({
+        'guid': guid,
+        'firstName': body['firstName'] ?? '',
+        'lastName': body['lastName'] ?? '',
+        'phoneNumber': body['phoneNumber'] ?? '',
+        'email': body['email'],
+        'bookingCount': 0,
+        'guestNotes': body['guestNotes'],
+        'guestTags': <String>[],
+        'guestbookTagIds': <String>[],
+        'guestbookGuid': null,
+        'guestProfilesGuid': null,
+      });
+    }
+    // PATCH /booking/{guid}/reservation or /waitlist — edit existing
+    // booking. Path-extract the guid, stash the body for later merge.
+    if (method == 'PATCH' && path.contains('/booking/') &&
+        (path.endsWith('/reservation') || path.endsWith('/waitlist'))) {
+      final after = path.split('/booking/').last;
+      final guid = after.split('/').first;
+      if (guid.isNotEmpty && options.data is Map) {
+        final existing = _bookingEditOverrides[guid] ?? <String, dynamic>{};
+        existing.addAll((options.data as Map).cast<String, dynamic>());
+        _bookingEditOverrides[guid] = existing;
+      }
+    }
+    // PATCH /booking/{guid}/serverV2 — change-server action. Capture the
+    // employeeGuid; the existing status-override path doesn't touch server.
+    if (method == 'PATCH' && path.endsWith('/serverV2')) {
+      final after = path.split('/booking/').last;
+      final guid = after.split('/').first;
+      if (guid.isNotEmpty && options.data is Map) {
+        final emp = (options.data as Map)['employeeGuid'];
+        if (emp is String && emp.isNotEmpty) _serverOverrides[guid] = emp;
+      }
+    }
+    // PATCH /booking/{guid}/leftBuilding (single-guid form) — the existing
+    // doneV2/leftBuilding capture only handles the batch body shape.
+    if (method == 'PATCH' && path.endsWith('/leftBuilding') &&
+        !(options.data is Map &&
+            (options.data as Map)['bookingGuids'] is List)) {
+      final after = path.split('/booking/').last;
+      final guid = after.split('/').first;
+      if (guid.isNotEmpty) {
+        _statusOverrides[guid] =
+            guid.startsWith('wait-') ? 'W_DONE' : 'R_DONE';
+      }
+    }
+    // POST /booking/{guid}/dismissToHistory — swipe cancelled/no-show off.
+    // Capture so override loop stamps dismissToHistory=true (the bloc reads
+    // this to filter the row out of the active list).
+    if (method == 'POST' && path.endsWith('/dismissToHistory')) {
+      final segs = path.split('/');
+      final dIdx = segs.indexOf('dismissToHistory');
+      final guid = dIdx > 0 ? segs[dIdx - 1] : '';
+      if (guid.isNotEmpty) {
+        final edit = _bookingEditOverrides[guid] ?? <String, dynamic>{};
+        edit['dismissToHistory'] = true;
+        _bookingEditOverrides[guid] = edit;
       }
     }
     // Undo (snackbar "Undo" tap after dirty/done) — POST /booking/{guid}/undoBookingStatus.
@@ -477,6 +574,31 @@ class DemoMockInterceptor extends Interceptor {
       }
       return {'results': <dynamic>[]};
     }
+    // POST /booking/{guid}/dismissToHistory — echo the now-dismissed
+    // booking so the bloc removes it from the active list immediately.
+    if (method == 'POST' && path.endsWith('/dismissToHistory')) {
+      final segs = path.split('/');
+      final dIdx = segs.indexOf('dismissToHistory');
+      final guid = dIdx > 0 ? segs[dIdx - 1] : '';
+      for (final b in _bookings()) {
+        if (b['guid'] == guid) return {'results': [b]};
+      }
+      return {'results': <dynamic>[]};
+    }
+    // POST /booking/batchGet — body has {bookingGuids:[...]}, response is
+    // a list of bookings. Used by push-notification handlers.
+    if (method == 'POST' && path.endsWith('/booking/batchGet')) {
+      return {'results': <dynamic>[]};  // body not in scope here; safe empty
+    }
+    // POST /booking/{guid}/sendDepositReminderV2 — fire-and-forget.
+    if (method == 'POST' && path.endsWith('/sendDepositReminderV2')) {
+      final after = path.split('/booking/').last;
+      final guid = after.split('/').first;
+      for (final b in _bookings()) {
+        if (b['guid'] == guid) return {'results': [b]};
+      }
+      return {'results': <dynamic>[]};
+    }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     // CRITICAL ORDERING — /table/dirty and /table/makeAvailable live UNDER
     // /booking/v2/app/... so their full path contains "/booking/". They
@@ -662,10 +784,55 @@ class DemoMockInterceptor extends Interceptor {
     // "no results" no matter what. Return the full guestbook so any query
     // surfaces matches (the app does its own client-side filtering).
     if (method == 'GET' && (path.contains('querySearch') || path.contains('guestSearch'))) {
-      return {'results': _guests()};
+      return {'results': _guestsAll()};
     }
     // Guestbook
-    if (method == 'GET' && path.contains('/guests')) return {'results': _guests()};
+    if (method == 'GET' && path.contains('/guests')) return {'results': _guestsAll()};
+    // GET /guest/{guid}/bookingsV2 — guest profile "Past visits". Returns
+    // every booking attached to the guest guid.
+    if (method == 'GET' && path.contains('/guest/') && path.endsWith('/bookingsV2')) {
+      final segs = path.split('/');
+      final gIdx = segs.indexOf('guest');
+      final guid = (gIdx >= 0 && gIdx + 1 < segs.length) ? segs[gIdx + 1] : '';
+      final matches = _bookings().where((b) {
+        final g = b['guest'];
+        return g is Map && g['guid'] == guid;
+      }).toList();
+      return {'results': matches};
+    }
+    // PATCH /guest/{guid} or /guest/{guid}/tag — guest edits + tag toggle.
+    // Capture already ran in onRequest; return the merged guest so the
+    // bloc reflects the change immediately.
+    if (method == 'PATCH' && path.contains('/app/guest/')) {
+      final segs = path.split('/');
+      final gIdx = segs.indexOf('guest');
+      final guid = (gIdx >= 0 && gIdx + 1 < segs.length) ? segs[gIdx + 1] : '';
+      for (final g in _guestsAll()) {
+        if (g['guid'] == guid) return {'results': [g]};
+      }
+      return {'results': <dynamic>[]};
+    }
+    // POST /guest/ (create) and /checkExistingGuest (dedupe lookup).
+    if (method == 'POST' && path.endsWith('/app/guest/')) {
+      if (_extraGuests.isEmpty) return {'results': <dynamic>[]};
+      return {'results': [_extraGuests.last]};
+    }
+    // POST /checkExistingGuest — dedupe lookup before guest creation.
+    // Always return empty so the flow proceeds to POST /guest/.
+    if (method == 'POST' && path.contains('/checkExistingGuest')) {
+      return {'results': <dynamic>[]};
+    }
+    // GET /booking/{guid} — single booking fetch (deep links, refresh).
+    // Match only when the segment after /booking/ is a real guid with no
+    // further path components (excludes /bookings, /booking/notify, etc.).
+    if (method == 'GET' && path.contains('/booking/')) {
+      final after = path.split('/booking/').last;
+      if (after.isNotEmpty && !after.contains('/') && !after.contains('?')) {
+        for (final b in _bookings()) {
+          if (b['guid'] == after) return {'results': [b]};
+        }
+      }
+    }
 
     // SMS threads — must return {"results":[]} not a raw list (fixes TypeError on floor plan load)
     if (path.contains('smsThread')) return {'results': <dynamic>[]};
@@ -1181,9 +1348,29 @@ class DemoMockInterceptor extends Interceptor {
     if (_statusOverrides.isNotEmpty ||
         _notifyTimes.isNotEmpty ||
         _tableAssignmentOverrides.isNotEmpty ||
-        _bookingTypeOverrides.isNotEmpty) {
+        _bookingTypeOverrides.isNotEmpty ||
+        _bookingEditOverrides.isNotEmpty ||
+        _serverOverrides.isNotEmpty) {
       for (final b in list) {
         final guid = b['guid'] as String?;
+        // Edit override (partySize / dateTime / notes / etc. from edit
+        // sheet). Field-level merge — applied first so other overrides
+        // (status, tables) win over edits that touched the same field.
+        final edit = _bookingEditOverrides[guid];
+        if (edit != null) {
+          edit.forEach((k, v) {
+            // Translate edit-sheet keys to BookingDto keys where they differ.
+            if (k == 'dateTime') {
+              if (v is String && v.isNotEmpty) b['expectedStartTime'] = v;
+            } else if (k == 'tableGuids') {
+              if (v is List) b['tables'] = v.whereType<String>().toList();
+            } else if (k == 'serviceAreaGuids') {
+              if (v is List) b['serviceAreas'] = v.whereType<String>().toList();
+            } else {
+              b[k] = v;
+            }
+          });
+        }
         // Table-assignment override from seatV2/moveV2. Without applying
         // this the booking renders as SEATED but with empty `tables`, so
         // the floor plan never connects it to the dropped table tile.
@@ -1195,6 +1382,11 @@ class DemoMockInterceptor extends Interceptor {
         final newType = _bookingTypeOverrides[guid];
         if (newType != null) {
           b['bookingType'] = newType;
+        }
+        // Change-server override (employeeGuid → server stub).
+        final emp = _serverOverrides[guid];
+        if (emp != null) {
+          b['server'] = {'guid': emp, 'firstName': '', 'lastName': ''};
         }
         final override = _statusOverrides[guid];
         if (override != null) {
@@ -1467,6 +1659,20 @@ class DemoMockInterceptor extends Interceptor {
     'diane.wilson@fakemail.com|+16505557207|Diane|Wilson',
     'abigail.carter@fakemail.com|+14085558693|Abigail|Carter',
   ];
+
+  /// Guestbook + session-added guests + per-guest field-level overrides
+  /// applied on top. Use this everywhere /guests, /guestSearch, /guest/{guid}
+  /// is read — keeps the override layer centralized.
+  List<Map<String, dynamic>> _guestsAll() {
+    final all = <Map<String, dynamic>>[..._guests(), ..._extraGuests];
+    if (_guestOverrides.isEmpty) return all;
+    for (final g in all) {
+      final guid = g['guid'] as String?;
+      final ov = _guestOverrides[guid];
+      if (ov != null) g.addAll(ov);
+    }
+    return all;
+  }
 
   List<Map<String, dynamic>> _guests() => _guestRows.map((row) {
         final p = row.split('|');
