@@ -23,6 +23,15 @@ class DemoMockInterceptor extends Interceptor {
   // bookings, so a seated walk-in stays invisible on the table tile
   // until we also promote its bookingType to RESERVATION.
   final Map<String, String> _bookingTypeOverrides = {};
+  // Walk-in seat remapping: capman-host's bloc caches a booking's stream
+  // membership (waitlist vs reservation) on first sight by bookingType
+  // and won't re-route when the type later changes. A walk-in is born as
+  // WAITLIST (via POST /booking/waitlist) and stays stuck in the waitlist
+  // stream even after seatV2 flips its type — so the floor-plan tile never
+  // shows the seated party. On seatV2 we replace the demo-* booking with
+  // a brand-new RESERVATION-typed booking under a new guid; this map lets
+  // the seatV2 response handler look up which new booking to echo back.
+  final Map<String, String> _walkinSeatRemap = {};
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -280,19 +289,47 @@ class DemoMockInterceptor extends Interceptor {
     } else if (path.endsWith('/noShowV2')) {
       newStatus = r('NO_SHOW');
     } else if (path.endsWith('/seatV2')) {
-      // Seating a walk-in: the host first POSTed /booking/waitlist
-      // (synthesized as WAITLIST/W_WAITING) and is now seatV2'ing it.
-      // Force R_SEATED + RESERVATION type so the floor plan picks it up.
-      // Real waitlist guids (wait-*) become W_SEATED — same as before.
-      final isWaitGuid = guid.startsWith('wait-');
-      newStatus = isWaitGuid ? 'W_SEATED' : 'R_SEATED';
-      if (!isWaitGuid) {
-        _bookingTypeOverrides[guid] = 'RESERVATION';
-      }
-      // Body shape (BookingTableRequestBody): {tableGuids: [...], employeeGuid}
-      if (body is Map && body['tableGuids'] is List) {
-        final tbls = (body['tableGuids'] as List).whereType<String>().toList();
-        if (tbls.isNotEmpty) _tableAssignmentOverrides[guid] = tbls;
+      // Walk-in seat: the demo-* booking was born WAITLIST and the bloc
+      // caches stream membership by first-seen type. Flipping bookingType
+      // mid-life doesn't migrate the booking from waitlist→reservation
+      // stream. Replace it with a fresh RESERVATION-typed booking under
+      // a new guid so the bloc routes it to the reservation stream from
+      // first sight. Seeded waitlist guids (wait-*) stay W_SEATED for
+      // the seat-from-waitlist-tab flow.
+      if (guid.startsWith('demo-')) {
+        Map<String, dynamic>? original;
+        for (final b in _extraBookings) {
+          if (b['guid'] == guid) { original = b; break; }
+        }
+        if (original != null) {
+          _extraBookings.remove(original);
+          final tbls = (body is Map && body['tableGuids'] is List)
+              ? (body['tableGuids'] as List).whereType<String>().toList()
+              : <String>[];
+          final nowIso = DateTime.now().toIso8601String();
+          final newGuid = 'demo-seat-${DateTime.now().microsecondsSinceEpoch}';
+          final replacement = Map<String, dynamic>.from(original);
+          replacement['guid'] = newGuid;
+          replacement['bookingType'] = 'RESERVATION';
+          replacement['bookingStatus'] = 'R_SEATED';
+          replacement['tables'] = tbls;
+          replacement['actualStartTime'] = nowIso;
+          replacement['modifiedDate'] = nowIso;
+          _extraBookings.add(replacement);
+          _walkinSeatRemap[guid] = newGuid;
+        }
+        // Do NOT set _statusOverrides[guid] etc. — the old guid is gone.
+      } else {
+        // Seeded waitlist or other RESERVATION guid — original behavior.
+        final isWaitGuid = guid.startsWith('wait-');
+        newStatus = isWaitGuid ? 'W_SEATED' : 'R_SEATED';
+        if (!isWaitGuid) {
+          _bookingTypeOverrides[guid] = 'RESERVATION';
+        }
+        if (body is Map && body['tableGuids'] is List) {
+          final tbls = (body['tableGuids'] as List).whereType<String>().toList();
+          if (tbls.isNotEmpty) _tableAssignmentOverrides[guid] = tbls;
+        }
       }
     } else if (path.endsWith('/moveV2')) {
       // Move-table action — same body shape as seatV2; only the tables
@@ -662,7 +699,12 @@ class DemoMockInterceptor extends Interceptor {
         }
         return {'results': updated};
       }
-      final guid = path.split('/booking/').last.split('/').first;
+      final urlGuid = path.split('/booking/').last.split('/').first;
+      // Walk-in seat replaces the demo-* booking with a fresh RESERVATION-
+      // typed entry under a new guid (see _captureStatusOverride). The URL
+      // still references the old guid — remap to the new one so the
+      // SeatActionDto response carries the new booking.
+      final guid = _walkinSeatRemap[urlGuid] ?? urlGuid;
       final all = _bookings();
       Map<String, dynamic>? found;
       for (final b in all) {
