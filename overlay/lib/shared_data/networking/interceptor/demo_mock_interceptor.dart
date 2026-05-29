@@ -621,6 +621,16 @@ class DemoMockInterceptor extends Interceptor {
       }
       return {'results': <dynamic>[]};
     }
+    // CRITICAL ORDERING — block POSTs live under /booking/v1/app/blocks/...
+    // so they CONTAIN '/booking/' and would otherwise be eaten by the
+    // generic POST /booking/ catch-all below. Same trap as the /table/dirty
+    // ordering bug — must handle the specific path before the catch-all.
+    if (method == 'POST' &&
+        (path.contains('/app/blocks/blockTables/') ||
+         path.contains('/app/blocks/unblockTables/') ||
+         path.contains('/app/blockConfig/'))) {
+      return {'message': null, 'results': [_currentBlockConfig()]};
+    }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
     // CRITICAL ORDERING — /table/dirty and /table/makeAvailable live UNDER
     // /booking/v2/app/... so their full path contains "/booking/". They
@@ -695,15 +705,6 @@ class DemoMockInterceptor extends Interceptor {
       // One BlockConfig carrying the live _blockedTables set so the floor
       // plan's isBlocked derivation finds blocked guids. Empty list still
       // works (satisfies the downstream `.first` that was crashing).
-      return {'message': null, 'results': [_currentBlockConfig()]};
-    }
-    // Block/unblock POSTs — onRequest already updated _blockedTables.
-    // Respond with the same List<BlockConfig> shape the bloc expects
-    // (parseJsonList<BlockConfig> → reads {results:[...]} envelope).
-    if (method == 'POST' &&
-        (path.contains('/app/blocks/blockTables/') ||
-         path.contains('/app/blocks/unblockTables/') ||
-         path.contains('/app/blockConfig/'))) {
       return {'message': null, 'results': [_currentBlockConfig()]};
     }
     if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
