@@ -80,6 +80,16 @@ else:
     print('    WARNING: no _flutter.loader.load(...) match found; frame may not work.')
 PYEOF
 
+echo "==> Stamping build sha + timestamp into index.html..."
+# Sha comes from the DEMO repo HEAD (one dir up from _capman_host, since
+# we cd'd into the clone earlier). That's what actually changes between
+# deploys — capman-host itself is a fresh shallow clone every run.
+BUILD_SHA=$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
+sed -i "s|__BUILD_SHA__|${BUILD_SHA}|g" build/web/index.html
+sed -i "s|__BUILD_TIME__|${BUILD_TIME}|g" build/web/index.html
+echo "    OK — build ${BUILD_SHA} @ ${BUILD_TIME}"
+
 echo "==> Patching login button text for demo..."
 sed -i 's/Login with your Toast account/Start Demo/g' build/web/main.dart.js
 
