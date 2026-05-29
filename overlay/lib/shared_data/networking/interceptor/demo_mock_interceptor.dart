@@ -400,6 +400,18 @@ class DemoMockInterceptor extends Interceptor {
       return {'results': <dynamic>[]};
     }
     if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
+    // CRITICAL ORDERING — /table/dirty and /table/makeAvailable live UNDER
+    // /booking/v2/app/... so their full path contains "/booking/". They
+    // MUST be handled before the generic PATCH /booking/ catch-all below,
+    // or the path-split guid extractor pulls "v2" as the guid, finds no
+    // booking, returns {results: []}. The bloc then merges 0 TableStateDtos,
+    // DIRTY never reaches tableStateDtoListStream, and the floor plan
+    // derives the table as AVAILABLE the moment the booking flips to DONE
+    // (because `TableState.SEATED → available()` in _determineTableSeatStatus
+    // when no seated booking is left). This was the dirty-on-seated bug.
+    if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
+      return {'message': null, 'results': _tableStates()};
+    }
     if (method == 'PATCH' && path.contains('/booking/')) {
       // Batch endpoints (doneV2 / leftBuilding) — guid lives in the body
       // {bookingGuids: [...]}, not the URL. Without this branch the legacy
@@ -445,12 +457,6 @@ class DemoMockInterceptor extends Interceptor {
       return {'results': found != null ? [found] : <dynamic>[]};
     }
     if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
-
-    // PATCH /table/dirty and /table/makeAvailable return List<TableStateDto>.
-    // _captureTableState already wrote the override; rebuild the full list.
-    if (method == 'PATCH' && (path.contains('/table/dirty') || path.contains('/table/makeAvailable'))) {
-      return {'results': _tableStates()};
-    }
 
     // Blocks / orders / other booking endpoints that crash parseJsonList when unhandled
     // Blocks endpoints have TWO different response shapes:
