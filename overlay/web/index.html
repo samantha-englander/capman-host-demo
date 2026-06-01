@@ -251,23 +251,16 @@
     setInterval(rotatePun, 4500);
 
     window.addEventListener('flutter-first-frame', function() {
-      // Hold the splash an extra ~22s past Flutter's first frame so the
-      // demo's scripted notification sequence has time to fire its 4
-      // alerts before the user can see the bell. Timing:
-      //   • Flutter first-frame fires ~5s into page load
-      //   • Auth + first /bookings poll completes ~2s after first-frame
-      //   • Second /bookings poll (carries the 4 mutations) ~10s later
-      //   • Bloc diffs + emits alerts ~1s after that
-      // So the second poll's alerts are ready ~13s past first-frame.
-      // Held 22s for safety margin. Puns continue rotating during the
-      // hold so the wait feels intentional.
-      setTimeout(function() {
-        var el = document.getElementById('loading-card');
-        if (el) {
-          el.classList.add('fade-out');
-          setTimeout(function() { el.remove(); }, 400);
-        }
-      }, 22000);
+      // Fade immediately. The scripted notification sequence still fires
+      // ~10-15s after page load, but the demo is interactive from the
+      // jump — the bell badge will tick up to 4 in the background as the
+      // user explores. (Sam's call: snappy load wins over pre-populated
+      // bell at first sight.)
+      var el = document.getElementById('loading-card');
+      if (el) {
+        el.classList.add('fade-out');
+        setTimeout(function() { el.remove(); }, 400);
+      }
     });
   </script>
 
