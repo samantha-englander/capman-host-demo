@@ -416,7 +416,14 @@ class DemoMockInterceptor extends Interceptor {
   /// didn't pick one. Walks the same combos the smart-wait engine uses
   /// (2-tops push for 4, etc.) and returns the first combo with no overlap
   /// (90-min turn) against existing bookings around [start].
-  List<String> _autoAssignForNewBooking(int partySize, DateTime start) {
+  /// Find a non-conflicting combo for [partySize] at [start]. When
+  /// [preferredArea] is provided (e.g. 'patio'), only tables in that area
+  /// are considered — host-selected area choice must be honored. Falls
+  /// back to "no assignment" (empty list) rather than spilling into the
+  /// wrong area, so the create-reservation sheet doesn't silently put a
+  /// patio request in the dining room.
+  List<String> _autoAssignForNewBooking(int partySize, DateTime start,
+      {String? preferredArea}) {
     final end = start.add(const Duration(minutes: 90));
     final all = _bookings();
     bool free(String guid) {
@@ -433,7 +440,11 @@ class DemoMockInterceptor extends Interceptor {
       }
       return true;
     }
-    for (final area in const ['dining', 'patio']) {
+    // Restrict the search to the preferred area if specified.
+    final areas = preferredArea != null
+        ? <String>[preferredArea]
+        : const <String>['dining', 'patio'];
+    for (final area in areas) {
       for (final combo in _candidateCombos(partySize, area)) {
         if (combo.every(free)) return combo;
       }
@@ -476,6 +487,9 @@ class DemoMockInterceptor extends Interceptor {
       // Find a non-conflicting alternative for this booking.
       final partySize = (b['partySize'] as int?) ?? 2;
       final replacement = _autoAssignForNewBooking(partySize, bStart);
+      // ignore: avoid_print
+      print('[DEMO] auto-bump: $bGuid (partySize=$partySize, '
+          'wasOn=$tables, conflictsWith=$occupiedTables) → $replacement');
       if (replacement.isNotEmpty) {
         _tableAssignmentOverrides[bGuid] = replacement;
       }
@@ -542,7 +556,20 @@ class DemoMockInterceptor extends Interceptor {
     final bool userChose = userPickedTables.isNotEmpty;
     List<String> assignedTables = userPickedTables;
     if (!isWaitlist && !userChose) {
-      assignedTables = _autoAssignForNewBooking(partySize, start);
+      // Map the host-selected serviceAreaGuid to our internal area name so
+      // the auto-assigner respects the patio/dining choice instead of
+      // spilling into whichever has free tables.
+      String? preferredArea;
+      if (areas.contains('area-patio')) {
+        preferredArea = 'patio';
+      } else if (areas.contains('area-dining')) {
+        preferredArea = 'dining';
+      }
+      assignedTables = _autoAssignForNewBooking(
+        partySize, start, preferredArea: preferredArea);
+      // ignore: avoid_print
+      print('[DEMO] reservation auto-assign: area=$preferredArea '
+          'partySize=$partySize → $assignedTables');
     }
 
     final now = DateTime.now();
@@ -1585,6 +1612,9 @@ class DemoMockInterceptor extends Interceptor {
     }
 
     if (_bookingsPollCount >= 2) {
+      // ignore: avoid_print
+      print('[DEMO] notif-script: applying mutations on poll '
+          '$_bookingsPollCount (list size before = ${list.length})');
       final iso = DateTime.now().toIso8601String();
       // BookingChangeAlert — Daniel Brooks party 4→3 (victim seed)
       for (final b in list) {
