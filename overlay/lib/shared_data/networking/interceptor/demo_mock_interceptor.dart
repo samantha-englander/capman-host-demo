@@ -1578,25 +1578,12 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
-    // Trip the /orderPriceSummary fetch gate at booking_details_bloc.dart:64:
-    //   if (_booking.addOnConfigs.isNotEmpty || _booking.menuSelections.isNotEmpty)
-    //     _getOrderPriceSummary();
-    // Without a non-empty list here, the bloc never fetches our line items.
-    // Stamp a single inert AddOnConfig (quantity:0, empty name) — shape
-    // verified against BookingDto.AddOnConfig {guid, name, quantity}; all
-    // primitive required fields present, zero nested DTOs, won't render a
-    // price line. Earlier attempt used String 'placeholder' which crashed
-    // Freezed deserialization on every booking.
-    for (final b in list) {
-      final s = b['bookingStatus'] as String?;
-      if (s != 'R_SEATED' && s != 'W_SEATED') continue;
-      final addOns = b['addOnConfigs'];
-      if (addOns is! List || addOns.isEmpty) {
-        b['addOnConfigs'] = [
-          {'guid': 'stub-addon', 'name': '', 'quantity': 0},
-        ];
-      }
-    }
+    // NOTE: AddOnConfig stub (intended to trip the /orderPriceSummary
+    // fetch gate) bricks all bookings in some way I haven't diagnosed —
+    // length: 0 came back even though the shape (guid:String, name:String,
+    // quantity:int) matches the verbatim DTO. Reverted again. View Order
+    // line items will require further investigation; demo functions
+    // without it.
 
     return list;
   }
