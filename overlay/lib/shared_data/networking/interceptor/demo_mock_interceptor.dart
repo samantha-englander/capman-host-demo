@@ -1568,6 +1568,22 @@ class DemoMockInterceptor extends Interceptor {
     // and emits four separate alerts in one batch (~10s after load).
     // Mutations affect different bookings, so the 500ms merge window
     // (which only coalesces edits to the same booking) won't combine them.
+    // Notification victims must be cached by the BookingAlertsBloc on
+    // poll 1 so poll 2's mutations register as diffs. The bloc skips
+    // uncached bookings whose modifiedAt < _sessionStartTime — our seed
+    // sets modifiedDate to days-old createdDate, which would cause the
+    // victims to get skipped permanently. Override modifiedDate to "now"
+    // (after bloc construction) so they qualify for the cache. createdDate
+    // stays old so they don't trigger NewBookingAlert (they fail the
+    // _wasModifiedSinceCreation check, so the bloc just caches them).
+    final nowIso = DateTime.now().toIso8601String();
+    for (final b in list) {
+      final g = b['guid'];
+      if (g == 'notif-cancel' || g == 'notif-modify') {
+        b['modifiedDate'] = nowIso;
+      }
+    }
+
     if (_bookingsPollCount >= 2) {
       final iso = DateTime.now().toIso8601String();
       // BookingChangeAlert — Daniel Brooks party 4→3 (victim seed)
@@ -1583,6 +1599,7 @@ class DemoMockInterceptor extends Interceptor {
         if (b['guid'] == 'notif-cancel') {
           b['bookingStatus'] = 'R_CANCELLED';
           b['cancelledTime'] ??= iso;
+          b['modifiedDate'] = iso;
           break;
         }
       }
