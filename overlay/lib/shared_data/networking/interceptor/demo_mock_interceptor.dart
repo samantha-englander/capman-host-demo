@@ -39,6 +39,16 @@ class DemoMockInterceptor extends Interceptor {
   // /bookings polls after session start. Each new mutation lands in its
   // own poll cycle so the bloc emits a distinct alert per type.
   int _bookingsPollCount = 0;
+  // Wall-clock anchor for the scripted-notification trigger. The app only
+  // hits GET /bookings once (initial load); the 10s poller fetches the
+  // "update set" — employees/smsThreads/tableStates/blocks/orders — so a
+  // poll-count gate on /bookings never trips a second time. Instead, we
+  // apply notification mutations the first time _bookings() is read more
+  // than ~15s after session start. The bloc's internal list rebroadcasts
+  // on any change, so the mutated snapshot will be diffed against its
+  // prior cache and emit one alert per type.
+  final DateTime _sessionStart = DateTime.now();
+  bool _notifMutationsApplied = false;
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -1611,10 +1621,15 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
-    if (_bookingsPollCount >= 2) {
+    final elapsed = DateTime.now().difference(_sessionStart);
+    final shouldApplyNotifs = elapsed.inSeconds >= 15;
+    if (shouldApplyNotifs && !_notifMutationsApplied) {
+      _notifMutationsApplied = true;
       // ignore: avoid_print
-      print('[DEMO] notif-script: applying mutations on poll '
-          '$_bookingsPollCount (list size before = ${list.length})');
+      print('[DEMO] notif-script: applying mutations at '
+          '${elapsed.inSeconds}s elapsed (list size before = ${list.length})');
+    }
+    if (shouldApplyNotifs) {
       final iso = DateTime.now().toIso8601String();
       // BookingChangeAlert — Daniel Brooks party 4→3 (victim seed)
       for (final b in list) {
