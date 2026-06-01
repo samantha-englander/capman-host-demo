@@ -153,7 +153,7 @@
     /* Build sha + timestamp, fixed bottom-left of the viewport (outside
      * the tablet frame). Lets you confirm at a glance which deploy is
      * live — no need to inspect gh-pages. The placeholder gets sed-
-     * replaced by build.sh; if you ever see "eb01727" you're
+     * replaced by build.sh; if you ever see "e7b1206" you're
      * looking at unbuilt source. */
     #build-badge {
       position: fixed;
@@ -186,7 +186,7 @@
     <div class="tablet-home"></div>
   </div>
 
-  <div id="build-badge">build eb01727 · 2026-06-01 18:38 UTC</div>
+  <div id="build-badge">build e7b1206 · 2026-06-01 19:53 UTC</div>
 
   <script>
     // Unregister any service workers from prior deploys. Flutter previously
@@ -251,20 +251,16 @@
     setInterval(rotatePun, 4500);
 
     window.addEventListener('flutter-first-frame', function() {
-      // Hold the splash an extra ~12s past Flutter's first frame so the
-      // demo's scripted notification sequence has time to fire its 4
-      // alerts before the user can see the bell. By the time the splash
-      // fades, the in-app notifications panel is already populated —
-      // the demo appears to "load with" notifications instead of an
-      // empty bell that fills 10s later. Puns continue rotating during
-      // the hold so the wait feels intentional.
-      setTimeout(function() {
-        var el = document.getElementById('loading-card');
-        if (el) {
-          el.classList.add('fade-out');
-          setTimeout(function() { el.remove(); }, 400);
-        }
-      }, 12000);
+      // Fade immediately. The scripted notification sequence still fires
+      // ~10-15s after page load, but the demo is interactive from the
+      // jump — the bell badge will tick up to 4 in the background as the
+      // user explores. (Sam's call: snappy load wins over pre-populated
+      // bell at first sight.)
+      var el = document.getElementById('loading-card');
+      if (el) {
+        el.classList.add('fade-out');
+        setTimeout(function() { el.remove(); }, 400);
+      }
     });
   </script>
 
