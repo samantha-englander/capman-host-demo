@@ -1,3 +1,4 @@
+import 'package:capman_host/shared_domain/services/booking_change_tracker.dart';
 import 'package:capman_host/shared_ui/bloc/app_config/app_config_state.dart';
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
@@ -5,6 +6,15 @@ import 'package:injectable/injectable.dart';
 @LazySingleton()
 class DemoMockInterceptor extends Interceptor {
   final bool _isDemo;
+  // Capman-host's own host-action suppression hook. Calling
+  // trackChange(guid) marks a booking as "just changed by this user," so
+  // the BookingAlertsBloc skips firing a BookingChangeAlert for that guid
+  // for the next ~5s (_deduplicationWindow inside LocalBookingChangeTracker).
+  // We use this when auto-bumping a reservation (Kathy) so her table
+  // reassignment lands in the floor plan without surfacing a spurious
+  // "modification" notification — mirroring how real host-initiated
+  // changes are suppressed in production.
+  final BookingChangeTracker _changeTracker;
 
   // Session-scoped state: overrides applied via mutating endpoints.
   // The interceptor is a @LazySingleton so these maps survive across requests
@@ -49,6 +59,11 @@ class DemoMockInterceptor extends Interceptor {
   // diffs raw list content rather than modifiedDate, and we'll need
   // another suppression mechanism.
   List<String> _lastBumpedGuids = const [];
+  // True until the cancellation transition has been delivered to the bloc.
+  // We need to surface a CONFIRMED→CANCELLED transition for notif-cancel
+  // to fire a BookingCancellationAlert; see comment in _bookings() near
+  // notif-cancel handling for the full rationale.
+  bool _cancelDeliveryArmed = true;
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -95,7 +110,7 @@ class DemoMockInterceptor extends Interceptor {
   // In demo environment isProduction=false and isStaging=false — that's the
   // sole condition. debugFeaturesEnabled is intentionally false for demo so
   // the debug menu doesn't surface, so we can't use it as a gate here.
-  DemoMockInterceptor(AppConfigState config)
+  DemoMockInterceptor(AppConfigState config, this._changeTracker)
       : _isDemo = !config.isProduction && !config.isStaging;
 
   @override
@@ -471,6 +486,47 @@ class DemoMockInterceptor extends Interceptor {
   }
 
   /// Auto-bump any future reservation that conflicts with a freshly-seated
+  /// Builds the cancelled-state version of notif-cancel for delivery in
+  /// a PATCH response. Returns null when no notif-cancel seed exists or
+  /// the delivery has already happened. Caller invokes this exactly once
+  /// per session — the first time the host performs any PATCH.
+  Map<String, dynamic>? _takeCancelDelivery() {
+    if (!_cancelDeliveryArmed) return null;
+    Map<String, dynamic>? template;
+    for (final b in _bookings()) {
+      if (b['guid'] == 'notif-cancel') {
+        template = Map<String, dynamic>.from(b);
+        break;
+      }
+    }
+    if (template == null) return null;
+    final iso = DateTime.now().toIso8601String();
+    template['bookingStatus'] = 'R_CANCELLED';
+    template['cancelledTime'] = iso;
+    template['modifiedDate'] = iso;
+    template['dismissToHistory'] = false;
+    _cancelDeliveryArmed = false;
+    // ignore: avoid_print
+    print('[DEMO] delivering pre-loaded cancellation: notif-cancel → R_CANCELLED');
+    return template;
+  }
+
+  /// Appends the cancel-delivery to a SeatActionDto-shaped result list.
+  void _appendCancelDeliveryAsSeatAction(List<Map<String, dynamic>> results) {
+    final cancelled = _takeCancelDelivery();
+    if (cancelled != null) {
+      results.add({'order': null, 'booking': cancelled});
+    }
+  }
+
+  /// Appends the cancel-delivery to a BookingDto-shaped result list.
+  void _appendCancelDeliveryAsBooking(List<dynamic> results) {
+    final cancelled = _takeCancelDelivery();
+    if (cancelled != null) {
+      results.add(cancelled);
+    }
+  }
+
   /// party. Only moves UNPINNED reservations (requestedTable empty); pinned
   /// reservations stay put per the host's manual intent. Writes the new
   /// table assignment to [_tableAssignmentOverrides] so the next /bookings
@@ -839,17 +895,21 @@ class DemoMockInterceptor extends Interceptor {
           || path.endsWith('/serverV2');
       if (isSeatAction) {
         // Include any reservations auto-bumped by this action so the floor
-        // plan reflects the system's reassignment. Kathy needs to visibly
-        // move when a walk-in takes her table. The bumped booking comes
-        // back with new `tables` but unchanged `modifiedDate` (the override
-        // loop only writes `tables`), so the bloc's modifiedAt-based alert
-        // filter should suppress the change. If a spurious alert still
-        // appears, we'll need to suppress more aggressively.
+        // plan reflects the system's reassignment. Before riding them back,
+        // call BookingChangeTracker.trackChange(guid) for each — this is
+        // capman-host's official host-action suppression hook. The bloc's
+        // _processBookingsUpdated calls wasTriggeredLocally(booking) and
+        // skips alert generation for any guid tracked within the last 5s.
+        // Without this, riding Kathy back with new `tables` fires a
+        // BookingChangeAlert because the bloc diffs the list content.
         final results = <Map<String, dynamic>>[];
         if (found != null) {
           results.add({'order': null, 'booking': found});
         }
         if (_lastBumpedGuids.isNotEmpty) {
+          for (final bumpedGuid in _lastBumpedGuids) {
+            _changeTracker.trackChange(bumpedGuid);
+          }
           for (final b in all) {
             if (_lastBumpedGuids.contains(b['guid'])) {
               results.add({'order': null, 'booking': b});
@@ -858,14 +918,22 @@ class DemoMockInterceptor extends Interceptor {
           // ignore: avoid_print
           print('[DEMO] seatV2 response: returning '
               '${results.length} SeatActionDto(s) '
-              '(seated=${found?['guid']}, bumped=$_lastBumpedGuids)');
+              '(seated=${found?['guid']}, bumped=$_lastBumpedGuids, '
+              'tracked-locally)');
           _lastBumpedGuids = const [];
         }
+        // Deliver the pre-loaded cancellation transition the first time
+        // the host does anything. notif-cancel was emitted as CONFIRMED
+        // on the initial /bookings poll; ride her back as CANCELLED now
+        // so the bloc sees CONFIRMED→CANCELLED and fires the alert.
+        _appendCancelDeliveryAsSeatAction(results);
         return {'results': results};
       }
       // All other booking PATCHes (statusV2, confirmV2, noShowV2, cancel,
       // reservation, waitlist, leftBuilding) parse as List<BookingDto>.
-      return {'results': found != null ? [found] : <dynamic>[]};
+      final results = found != null ? <dynamic>[found] : <dynamic>[];
+      _appendCancelDeliveryAsBooking(results);
+      return {'results': results};
     }
     if (method == 'DELETE' && path.contains('/booking/')) return {'results': <dynamic>[]};
 
@@ -1651,15 +1719,24 @@ class DemoMockInterceptor extends Interceptor {
         break;
       }
     }
-    // BookingCancellationAlert — Megan Howard cancelled (notif-cancel seed)
+    // BookingCancellationAlert — Megan Howard cancelled (notif-cancel seed).
+    // The bloc requires a CONFIRMED→CANCELLED transition to fire a
+    // cancellation alert (see _detectCancellation: previous.status !=
+    // CANCELLED && current.status == CANCELLED). If she's already cancelled
+    // on the first /bookings emission, the bloc just caches her as
+    // cancelled and never alerts.
+    //
+    // So: leave notif-cancel as R_CONFIRMED in the initial /bookings
+    // payload (the bloc caches her confirmed), then ride her back as
+    // CANCELLED in the next PATCH-booking response. The first time the
+    // host touches anything, the booking manager merges the cancelled
+    // version into the local list, re-emits, and the bloc sees the
+    // transition. _cancelDeliveryArmed flips false once delivered.
+    // Stamp modifiedDate to "now" so the bloc accepts her into the cache
+    // on first poll (uncached pre-session bookings get skipped).
     for (final b in list) {
       if (b['guid'] == 'notif-cancel') {
-        b['bookingStatus'] = 'R_CANCELLED';
-        b['cancelledTime'] = nowIso;
         b['modifiedDate'] = nowIso;
-        // Keep dismissToHistory false so the cancellation surfaces in
-        // the active notification feed instead of getting hidden away.
-        b['dismissToHistory'] = false;
         break;
       }
     }
