@@ -324,6 +324,9 @@ class DemoMockInterceptor extends Interceptor {
           replacement['modifiedDate'] = nowIso;
           _extraBookings.add(replacement);
           _walkinSeatRemap[guid] = newGuid;
+          // Auto-move any unpinned reservation conflicting with this walk-in.
+          final partySize = (replacement['partySize'] as int?) ?? 2;
+          _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), partySize, newGuid);
         }
         // Do NOT set _statusOverrides[guid] etc. — the old guid is gone.
       } else {
@@ -335,7 +338,11 @@ class DemoMockInterceptor extends Interceptor {
         }
         if (body is Map && body['tableGuids'] is List) {
           final tbls = (body['tableGuids'] as List).whereType<String>().toList();
-          if (tbls.isNotEmpty) _tableAssignmentOverrides[guid] = tbls;
+          if (tbls.isNotEmpty) {
+            _tableAssignmentOverrides[guid] = tbls;
+            // Auto-move conflicting unpinned reservations off these tables.
+            _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), 2, guid);
+          }
         }
       }
     } else if (path.endsWith('/moveV2')) {
@@ -343,7 +350,11 @@ class DemoMockInterceptor extends Interceptor {
       // change (status stays SEATED).
       if (body is Map && body['tableGuids'] is List) {
         final tbls = (body['tableGuids'] as List).whereType<String>().toList();
-        if (tbls.isNotEmpty) _tableAssignmentOverrides[guid] = tbls;
+        if (tbls.isNotEmpty) {
+          _tableAssignmentOverrides[guid] = tbls;
+          // Auto-move conflicting unpinned reservations off the new tables.
+          _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), 2, guid);
+        }
       }
     } else if (path.endsWith('/unseatV2')) {
       newStatus = r('CONFIRMED');
@@ -428,6 +439,47 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
     return const <String>[];
+  }
+
+  /// Auto-bump any future reservation that conflicts with a freshly-seated
+  /// party. Only moves UNPINNED reservations (requestedTable empty); pinned
+  /// reservations stay put per the host's manual intent. Writes the new
+  /// table assignment to [_tableAssignmentOverrides] so the next /bookings
+  /// poll reflects the move. Caller passes the tables just occupied, the
+  /// occupancy start, the seating party size (used only to skip self), and
+  /// the seating booking's guid so we don't bump it.
+  void _bumpConflictingUnpinnedReservations(
+    List<String> occupiedTables,
+    DateTime occupiedFrom,
+    int seatingPartySize,
+    String seatingGuid,
+  ) {
+    if (occupiedTables.isEmpty) return;
+    final occupiedUntil = occupiedFrom.add(const Duration(minutes: 90));
+    for (final b in _bookings()) {
+      final bGuid = b['guid'] as String?;
+      if (bGuid == null || bGuid == seatingGuid) continue;
+      final status = b['bookingStatus'] as String?;
+      // Only bump CONFIRMED / ARRIVED future reservations.
+      if (status != 'R_CONFIRMED' && status != 'R_ARRIVED') continue;
+      // Pinned reservations stay put.
+      final requested = (b['requestedTable'] as List?)?.cast<String>() ?? const <String>[];
+      if (requested.isNotEmpty) continue;
+      final tables = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
+      final overlapsTable = tables.any(occupiedTables.contains);
+      if (!overlapsTable) continue;
+      final bStart = DateTime.tryParse(b['expectedStartTime'] as String? ?? '');
+      if (bStart == null) continue;
+      final bEnd = bStart.add(const Duration(minutes: 90));
+      // Time-window overlap check.
+      if (!(occupiedFrom.isBefore(bEnd) && occupiedUntil.isAfter(bStart))) continue;
+      // Find a non-conflicting alternative for this booking.
+      final partySize = (b['partySize'] as int?) ?? 2;
+      final replacement = _autoAssignForNewBooking(partySize, bStart);
+      if (replacement.isNotEmpty) {
+        _tableAssignmentOverrides[bGuid] = replacement;
+      }
+    }
   }
 
   /// Create-booking endpoints (POST /booking/waitlist | /booking/reservation).
@@ -1197,13 +1249,6 @@ class DemoMockInterceptor extends Interceptor {
           created: now.subtract(const Duration(days: 1)),
           arrivedAt: now.subtract(const Duration(minutes: 5)),
           notes: 'Celebrating a new job; hoping for a lively table in the main dining room.'),
-      _booking(guid: 'arr-2', type: 'RESERVATION', status: 'R_ARRIVED', partySize: 1,
-          start: _q(now.add(const Duration(minutes: 15))),
-          tables: ['t-c1'], areas: ['area-dining'],
-          firstName: 'Keith', lastName: 'Johnson', phone: '16505557677',
-          email: 'keith.johnson@fakemail.com',
-          created: now.subtract(const Duration(days: 2)),
-          arrivedAt: now.subtract(const Duration(minutes: 8))),
       _booking(guid: 'arr-3', type: 'RESERVATION', status: 'R_ARRIVED', partySize: 2,
           start: _q(now.add(const Duration(minutes: 20))),
           tables: ['t-4'], areas: ['area-dining'], pinned: true,
@@ -1246,12 +1291,6 @@ class DemoMockInterceptor extends Interceptor {
           tables: ['t-1', 't-2'], areas: ['area-dining'],
           firstName: 'Sandra', lastName: 'Stewart', phone: '16505551694',
           email: 'sandra.stewart@fakemail.com',
-          created: now.subtract(const Duration(days: 1))),
-      _booking(guid: 'res-9', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
-          start: _q(now.add(const Duration(minutes: 150))),
-          tables: ['t-c6'], areas: ['area-dining'],
-          firstName: 'Nathan', lastName: 'Hughes', phone: '17185552093',
-          email: 'nathan.hughes@fakemail.com',
           created: now.subtract(const Duration(days: 1))),
       // Wave 2: tables freed from Wave 1 (≥90 min after their first seating)
       _booking(guid: 'res-10', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 2,
@@ -1397,12 +1436,6 @@ class DemoMockInterceptor extends Interceptor {
           email: 'jacqueline.gray@fakemail.com',
           created: now.subtract(const Duration(days: 3)),
           notes: 'One of our guests has a gluten intolerance; please advise on suitable menu items.'),
-      _booking(guid: 'tmr-20', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 1,
-          start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 21, 30),
-          tables: ['t-c5'], areas: ['area-dining'],
-          firstName: 'Bruce', lastName: 'White', phone: '16505553588',
-          email: 'bruce.white@fakemail.com',
-          created: now.subtract(const Duration(days: 7))),
 
       // ── Waitlist ──────────────────────────────────────────────────────────
       _booking(guid: 'wait-1', type: 'WAITLIST', status: 'W_WAITING', partySize: 3,
