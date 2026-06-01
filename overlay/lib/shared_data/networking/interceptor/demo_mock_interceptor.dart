@@ -218,13 +218,43 @@ class DemoMockInterceptor extends Interceptor {
     }
     // PATCH /booking/{guid}/reservation or /waitlist — edit existing
     // booking. Path-extract the guid, stash the body for later merge.
+    // The +15/+30 turn-time button sends ONLY {expectedEndTime: "..."}, the
+    // edit-booking sheet may send many fields. We never want to clobber
+    // actualStartTime (when the party was actually seated) — that's read by
+    // the floor-plan progress bar, and overwriting it visually "resets" the
+    // bar back to 0% even though the host only meant to extend the end time.
     if (method == 'PATCH' && path.contains('/booking/') &&
         (path.endsWith('/reservation') || path.endsWith('/waitlist'))) {
       final after = path.split('/booking/').last;
       final guid = after.split('/').first;
       if (guid.isNotEmpty && options.data is Map) {
+        final body = (options.data as Map).cast<String, dynamic>();
+        // ignore: avoid_print
+        print('[DEMO] PATCH ${path.endsWith('/reservation') ? '/reservation' : '/waitlist'} '
+            'guid=$guid body=${body.keys.toList()} '
+            'expectedStartTime=${body['expectedStartTime']} '
+            'expectedEndTime=${body['expectedEndTime']}');
+        // Defensive: strip any key that could shift the seated start time.
+        // The progress bar is driven by actualStartTime + expectedEndTime;
+        // a host extending the visit should never affect either start time.
+        body.remove('actualStartTime');
+        // If the booking is already seated, also strip expectedStartTime so
+        // the bar denominator stays anchored to the original visit start.
+        // (Leave it alone for not-yet-seated reservations — those edits go
+        // through the edit sheet where moving the slot is intentional.)
+        final isSeated = _statusOverrides[guid]?.endsWith('_SEATED') == true ||
+            (() {
+              for (final b in _bookings()) {
+                if (b['guid'] == guid) {
+                  final s = b['bookingStatus'] as String?;
+                  return s == 'R_SEATED' || s == 'W_SEATED';
+                }
+              }
+              return false;
+            })();
+        if (isSeated) body.remove('expectedStartTime');
         final existing = _bookingEditOverrides[guid] ?? <String, dynamic>{};
-        existing.addAll((options.data as Map).cast<String, dynamic>());
+        existing.addAll(body);
         _bookingEditOverrides[guid] = existing;
       }
     }
@@ -380,7 +410,11 @@ class DemoMockInterceptor extends Interceptor {
       }
     } else if (path.endsWith('/moveV2')) {
       // Move-table action — same body shape as seatV2; only the tables
-      // change (status stays SEATED).
+      // change (status stays SEATED). Same endpoint serves both drag-drop
+      // and Move-Table-menu flows. Log the request shape so we can tell
+      // the two paths apart in diagnostics (menu fails; drag-drop is slow).
+      // ignore: avoid_print
+      print('[DEMO] moveV2 onRequest: guid=$guid body=$body');
       if (body is Map && body['tableGuids'] is List) {
         final tbls = (body['tableGuids'] as List).whereType<String>().toList();
         if (tbls.isNotEmpty) {
@@ -1810,6 +1844,31 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
+    // Trip the /orderPriceSummary fetch gate for seated bookings so the
+    // View Order screen shows real line items. BookingDetailsBloc only
+    // calls _getOrderPriceSummary() when booking.addOnConfigs.isNotEmpty
+    // (or menuSelections.isNotEmpty) — without that gate, the screen
+    // shows totals from the booking DTO but no individual items.
+    //
+    // AddOnConfig shape verified against booking_dto.dart:
+    //   { guid: String, name: String, quantity: int }
+    //
+    // We tried this once before and it bricked the list (length:0). The
+    // hypothesis was that empty `name` or zero `quantity` failed
+    // freezed parsing. This attempt uses a non-empty name and quantity=1.
+    // Restricted to SEATED bookings only — keeps blast radius small in
+    // case anything still goes wrong (worst case: only seated rows brick,
+    // not the whole demo).
+    for (final b in list) {
+      final status = b['bookingStatus'] as String?;
+      if (status != 'R_SEATED' && status != 'W_SEATED') continue;
+      final existing = (b['addOnConfigs'] as List?) ?? const <dynamic>[];
+      if (existing.isNotEmpty) continue;
+      b['addOnConfigs'] = <Map<String, dynamic>>[
+        {'guid': 'demo-addon-${b['guid']}', 'name': 'Reservation Hold', 'quantity': 1},
+      ];
+    }
+
     // NOTE: AddOnConfig stub (intended to trip the /orderPriceSummary
     // fetch gate) bricks all bookings in some way I haven't diagnosed —
     // length: 0 came back even though the shape (guid:String, name:String,
@@ -2377,7 +2436,10 @@ class DemoMockInterceptor extends Interceptor {
       'quantity': qty.toDouble(),
       'unitPrice': dollars,
       'unitPriceMonetary': _monetary(cents),
-      'selectionType': 'REQUIRED',
+      // TIERED → BookingDetailsBloc routes the item to the visible menu-
+      // selections list. REQUIRED would bundle everything into a single
+      // hidden "Reservation" prepayment row instead.
+      'selectionType': 'TIERED',
     };
   }
 
