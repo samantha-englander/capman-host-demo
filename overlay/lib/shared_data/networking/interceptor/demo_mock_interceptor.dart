@@ -1844,30 +1844,15 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
-    // Trip the /orderPriceSummary fetch gate for seated bookings so the
-    // View Order screen shows real line items. BookingDetailsBloc only
-    // calls _getOrderPriceSummary() when booking.addOnConfigs.isNotEmpty
-    // (or menuSelections.isNotEmpty) — without that gate, the screen
-    // shows totals from the booking DTO but no individual items.
-    //
-    // AddOnConfig shape verified against booking_dto.dart:
-    //   { guid: String, name: String, quantity: int }
-    //
-    // We tried this once before and it bricked the list (length:0). The
-    // hypothesis was that empty `name` or zero `quantity` failed
-    // freezed parsing. This attempt uses a non-empty name and quantity=1.
-    // Restricted to SEATED bookings only — keeps blast radius small in
-    // case anything still goes wrong (worst case: only seated rows brick,
-    // not the whole demo).
-    for (final b in list) {
-      final status = b['bookingStatus'] as String?;
-      if (status != 'R_SEATED' && status != 'W_SEATED') continue;
-      final existing = (b['addOnConfigs'] as List?) ?? const <dynamic>[];
-      if (existing.isNotEmpty) continue;
-      b['addOnConfigs'] = <Map<String, dynamic>>[
-        {'guid': 'demo-addon-${b['guid']}', 'name': 'Reservation Hold', 'quantity': 1},
-      ];
-    }
+    // NOTE: third attempt at the AddOnConfig stub also bricked with
+    // Stack Overflow on /bookings, /smsThreads, /orders, /previewEstimateV2.
+    // Shape was verified against the booking_dto.dart freezed source
+    // (guid:String, name:String, quantity:int) and we used non-empty
+    // values this time — still bricked. Whatever the actual cause, it
+    // reliably crashes the demo. Reverting permanently; View Order line
+    // items remain unimplemented and will require a different angle
+    // (e.g. menuSelections instead of addOnConfigs, or modifying
+    // capman-host source).
 
     // NOTE: AddOnConfig stub (intended to trip the /orderPriceSummary
     // fetch gate) bricks all bookings in some way I haven't diagnosed —
@@ -2436,10 +2421,7 @@ class DemoMockInterceptor extends Interceptor {
       'quantity': qty.toDouble(),
       'unitPrice': dollars,
       'unitPriceMonetary': _monetary(cents),
-      // TIERED → BookingDetailsBloc routes the item to the visible menu-
-      // selections list. REQUIRED would bundle everything into a single
-      // hidden "Reservation" prepayment row instead.
-      'selectionType': 'TIERED',
+      'selectionType': 'REQUIRED',
     };
   }
 
