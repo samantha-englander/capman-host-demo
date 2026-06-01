@@ -1780,6 +1780,36 @@ class DemoMockInterceptor extends Interceptor {
       ));
     }
 
+    // The four notification-victim bookings (notif-cancel, notif-modify,
+    // demo-notif-suzie, demo-notif-marcus) were seeded with empty tables
+    // so the alert generation didn't depend on table state. But the host
+    // needs every booking to have a (suggested) table — otherwise the
+    // floor plan can't render them and the user can't drag-move them.
+    // Auto-assign each on every read so they get a real table from the
+    // same allocator that picks tables for newly-created reservations.
+    const notifGuids = {
+      'notif-cancel',
+      'notif-modify',
+      'demo-notif-suzie',
+      'demo-notif-marcus',
+    };
+    for (final b in list) {
+      final guid = b['guid'] as String?;
+      if (guid == null || !notifGuids.contains(guid)) continue;
+      final tables = (b['tables'] as List?)?.cast<String>() ?? const <String>[];
+      if (tables.isNotEmpty) continue;
+      final start = DateTime.tryParse(b['expectedStartTime'] as String? ?? '');
+      if (start == null) continue;
+      final partySize = (b['partySize'] as int?) ?? 2;
+      final assigned = _autoAssignForNewBooking(partySize, start);
+      if (assigned.isNotEmpty) {
+        b['tables'] = assigned;
+        // Default to the dining service area so the floor-plan list view
+        // groups them sensibly. (The allocator picks dining tables first.)
+        b['serviceAreas'] = const <String>['area-dining'];
+      }
+    }
+
     // NOTE: AddOnConfig stub (intended to trip the /orderPriceSummary
     // fetch gate) bricks all bookings in some way I haven't diagnosed —
     // length: 0 came back even though the shape (guid:String, name:String,
