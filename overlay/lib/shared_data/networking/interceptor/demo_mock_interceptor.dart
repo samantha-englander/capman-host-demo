@@ -331,7 +331,15 @@ class DemoMockInterceptor extends Interceptor {
           replacement['bookingStatus'] = 'R_SEATED';
           replacement['tables'] = tbls;
           replacement['actualStartTime'] = nowIso;
-          replacement['modifiedDate'] = nowIso;
+          // Deliberately backdate modifiedDate (and preserve original's
+          // createdDate) so the BookingAlertsBloc does NOT treat this
+          // walk-in seat as a fresh NewBooking. Host-initiated actions
+          // should be invisible to the notification feed.
+          final past = DateTime.now()
+              .subtract(const Duration(days: 2))
+              .toIso8601String();
+          replacement['modifiedDate'] = past;
+          replacement['createdDate'] = past;
           _extraBookings.add(replacement);
           _walkinSeatRemap[guid] = newGuid;
           // Auto-move any unpinned reservation conflicting with this walk-in.
@@ -1647,9 +1655,11 @@ class DemoMockInterceptor extends Interceptor {
     for (final b in list) {
       if (b['guid'] == 'notif-cancel') {
         b['bookingStatus'] = 'R_CANCELLED';
-        b['cancelledTime'] ??= nowIso;
+        b['cancelledTime'] = nowIso;
         b['modifiedDate'] = nowIso;
-        b['dismissToHistory'] = true;
+        // Keep dismissToHistory false so the cancellation surfaces in
+        // the active notification feed instead of getting hidden away.
+        b['dismissToHistory'] = false;
         break;
       }
     }
