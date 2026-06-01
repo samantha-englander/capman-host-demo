@@ -1290,6 +1290,25 @@ class DemoMockInterceptor extends Interceptor {
           email: 'aaron.gomez@fakemail.com',
           created: now.subtract(const Duration(days: 1))),
 
+      // ── Notification-demo victim bookings ────────────────────────────────
+      // Seeded so the bell can fire one of each alert type within the
+      // splash window. The scripted mutation step (~10s after first poll)
+      // cancels notif-cancel and modifies notif-modify, while also
+      // appending two brand-new bookings (Suzie, Marcus). All four
+      // surface as alerts in the in-app notifications panel.
+      _booking(guid: 'notif-cancel', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 3,
+          start: _q(now.add(const Duration(minutes: 120))),
+          tables: const <String>[], areas: const <String>[],
+          firstName: 'Megan', lastName: 'Howard', phone: '14155550181',
+          email: 'megan.howard@fakemail.com',
+          created: now.subtract(const Duration(days: 2))),
+      _booking(guid: 'notif-modify', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
+          start: _q(now.add(const Duration(minutes: 150))),
+          tables: const <String>[], areas: const <String>[],
+          firstName: 'Daniel', lastName: 'Brooks', phone: '14155550244',
+          email: 'daniel.brooks@fakemail.com',
+          created: now.subtract(const Duration(days: 3))),
+
       // ── Tomorrow ──────────────────────────────────────────────────────────
       _booking(guid: 'tmr-1', type: 'RESERVATION', status: 'R_CONFIRMED', partySize: 4,
           start: DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 12, 0),
@@ -1518,17 +1537,17 @@ class DemoMockInterceptor extends Interceptor {
     // (which only coalesces edits to the same booking) won't combine them.
     if (_bookingsPollCount >= 2) {
       final iso = DateTime.now().toIso8601String();
-      // BookingChangeAlert — Hannah Lewis res-3 party 2→3
+      // BookingChangeAlert — Daniel Brooks party 4→3 (victim seed)
       for (final b in list) {
-        if (b['guid'] == 'res-3') {
+        if (b['guid'] == 'notif-modify') {
           b['partySize'] = 3;
           b['modifiedDate'] = iso;
           break;
         }
       }
-      // BookingCancellationAlert — Lauren Richardson res-11 cancelled
+      // BookingCancellationAlert — Megan Howard cancelled (victim seed)
       for (final b in list) {
-        if (b['guid'] == 'res-11') {
+        if (b['guid'] == 'notif-cancel') {
           b['bookingStatus'] = 'R_CANCELLED';
           b['cancelledTime'] ??= iso;
           break;

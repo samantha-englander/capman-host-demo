@@ -251,11 +251,20 @@
     setInterval(rotatePun, 4500);
 
     window.addEventListener('flutter-first-frame', function() {
-      var el = document.getElementById('loading-card');
-      if (el) {
-        el.classList.add('fade-out');
-        setTimeout(function() { el.remove(); }, 400);
-      }
+      // Hold the splash an extra ~12s past Flutter's first frame so the
+      // demo's scripted notification sequence has time to fire its 4
+      // alerts before the user can see the bell. By the time the splash
+      // fades, the in-app notifications panel is already populated —
+      // the demo appears to "load with" notifications instead of an
+      // empty bell that fills 10s later. Puns continue rotating during
+      // the hold so the wait feels intentional.
+      setTimeout(function() {
+        var el = document.getElementById('loading-card');
+        if (el) {
+          el.classList.add('fade-out');
+          setTimeout(function() { el.remove(); }, 400);
+        }
+      }, 12000);
     });
   </script>
 
