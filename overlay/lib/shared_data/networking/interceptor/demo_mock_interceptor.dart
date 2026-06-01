@@ -456,9 +456,14 @@ class DemoMockInterceptor extends Interceptor {
   /// wrong area, so the create-reservation sheet doesn't silently put a
   /// patio request in the dining room.
   List<String> _autoAssignForNewBooking(int partySize, DateTime start,
-      {String? preferredArea}) {
+      {String? preferredArea, List<Map<String, dynamic>>? bookingsOverride}) {
     final end = start.add(const Duration(minutes: 90));
-    final all = _bookings();
+    // CRITICAL: callers from inside _bookings() MUST pass bookingsOverride,
+    // otherwise we re-enter _bookings() and hit infinite recursion (Stack
+    // Overflow on every /bookings, /orders, /smsThreads, /previewEstimateV2
+    // call — anything that touches _bookings()). External callers (seatV2
+    // handler etc.) can omit it and we'll resolve normally.
+    final all = bookingsOverride ?? _bookings();
     bool free(String guid) {
       for (final b in all) {
         final s = b['bookingStatus'] as String?;
@@ -1801,7 +1806,13 @@ class DemoMockInterceptor extends Interceptor {
       final start = DateTime.tryParse(b['expectedStartTime'] as String? ?? '');
       if (start == null) continue;
       final partySize = (b['partySize'] as int?) ?? 2;
-      final assigned = _autoAssignForNewBooking(partySize, start);
+      // Pass `list` to break the _bookings() → _autoAssignForNewBooking →
+      // _bookings() recursion that bricked the demo with Stack Overflow.
+      final assigned = _autoAssignForNewBooking(
+        partySize,
+        start,
+        bookingsOverride: list,
+      );
       if (assigned.isNotEmpty) {
         b['tables'] = assigned;
         // Default to the dining service area so the floor-plan list view
