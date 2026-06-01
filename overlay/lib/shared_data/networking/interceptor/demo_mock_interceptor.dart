@@ -39,6 +39,16 @@ class DemoMockInterceptor extends Interceptor {
   // /bookings polls after session start. Each new mutation lands in its
   // own poll cycle so the bloc emits a distinct alert per type.
   int _bookingsPollCount = 0;
+  // Guids of reservations auto-bumped by the most recent seatV2/moveV2.
+  // Read by the PATCH response so they ride back as SeatActionDto(s),
+  // making Kathy's reassignment visible in the floor-plan list. Their
+  // modifiedDate is intentionally NOT touched (kept at the seed's
+  // days-old value), so the BookingAlertsBloc filter — which skips
+  // alerts for bookings whose modifiedAt < sessionStart — should
+  // suppress the change. If a spurious alert still fires, the bloc
+  // diffs raw list content rather than modifiedDate, and we'll need
+  // another suppression mechanism.
+  List<String> _lastBumpedGuids = const [];
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -465,7 +475,9 @@ class DemoMockInterceptor extends Interceptor {
     int seatingPartySize,
     String seatingGuid,
   ) {
+    _lastBumpedGuids = const [];
     if (occupiedTables.isEmpty) return;
+    final bumped = <String>[];
     final occupiedUntil = occupiedFrom.add(const Duration(minutes: 90));
     for (final b in _bookings()) {
       final bGuid = b['guid'] as String?;
@@ -492,8 +504,10 @@ class DemoMockInterceptor extends Interceptor {
           'wasOn=$tables, conflictsWith=$occupiedTables) → $replacement');
       if (replacement.isNotEmpty) {
         _tableAssignmentOverrides[bGuid] = replacement;
+        bumped.add(bGuid);
       }
     }
+    _lastBumpedGuids = bumped;
   }
 
   /// Create-booking endpoints (POST /booking/waitlist | /booking/reservation).
@@ -816,20 +830,30 @@ class DemoMockInterceptor extends Interceptor {
           || path.endsWith('/moveV2')
           || path.endsWith('/serverV2');
       if (isSeatAction) {
-        // Return only the seated/moved booking. Auto-bumped reservations
-        // (if any) update _tableAssignmentOverrides server-side, but we do
-        // NOT ride them back in the response. The BookingAlertsBloc diffs
-        // booking-list changes into alerts; riding bumped bookings back
-        // fires a spurious BookingChange alert for the bump. By design,
-        // host-initiated activity is suppressed by the real product —
-        // the demo mirrors that by hiding system-side bump consequences
-        // from the app's view. The bumped reservation stays visually on
-        // its old table for the rest of the session, but no false alert.
-        return {
-          'results': found != null
-              ? [{'order': null, 'booking': found}]
-              : <dynamic>[],
-        };
+        // Include any reservations auto-bumped by this action so the floor
+        // plan reflects the system's reassignment. Kathy needs to visibly
+        // move when a walk-in takes her table. The bumped booking comes
+        // back with new `tables` but unchanged `modifiedDate` (the override
+        // loop only writes `tables`), so the bloc's modifiedAt-based alert
+        // filter should suppress the change. If a spurious alert still
+        // appears, we'll need to suppress more aggressively.
+        final results = <Map<String, dynamic>>[];
+        if (found != null) {
+          results.add({'order': null, 'booking': found});
+        }
+        if (_lastBumpedGuids.isNotEmpty) {
+          for (final b in all) {
+            if (_lastBumpedGuids.contains(b['guid'])) {
+              results.add({'order': null, 'booking': b});
+            }
+          }
+          // ignore: avoid_print
+          print('[DEMO] seatV2 response: returning '
+              '${results.length} SeatActionDto(s) '
+              '(seated=${found?['guid']}, bumped=$_lastBumpedGuids)');
+          _lastBumpedGuids = const [];
+        }
+        return {'results': results};
       }
       // All other booking PATCHes (statusV2, confirmV2, noShowV2, cancel,
       // reservation, waitlist, leftBuilding) parse as List<BookingDto>.
