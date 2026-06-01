@@ -218,43 +218,13 @@ class DemoMockInterceptor extends Interceptor {
     }
     // PATCH /booking/{guid}/reservation or /waitlist — edit existing
     // booking. Path-extract the guid, stash the body for later merge.
-    // The +15/+30 turn-time button sends ONLY {expectedEndTime: "..."}, the
-    // edit-booking sheet may send many fields. We never want to clobber
-    // actualStartTime (when the party was actually seated) — that's read by
-    // the floor-plan progress bar, and overwriting it visually "resets" the
-    // bar back to 0% even though the host only meant to extend the end time.
     if (method == 'PATCH' && path.contains('/booking/') &&
         (path.endsWith('/reservation') || path.endsWith('/waitlist'))) {
       final after = path.split('/booking/').last;
       final guid = after.split('/').first;
       if (guid.isNotEmpty && options.data is Map) {
-        final body = (options.data as Map).cast<String, dynamic>();
-        // ignore: avoid_print
-        print('[DEMO] PATCH ${path.endsWith('/reservation') ? '/reservation' : '/waitlist'} '
-            'guid=$guid body=${body.keys.toList()} '
-            'expectedStartTime=${body['expectedStartTime']} '
-            'expectedEndTime=${body['expectedEndTime']}');
-        // Defensive: strip any key that could shift the seated start time.
-        // The progress bar is driven by actualStartTime + expectedEndTime;
-        // a host extending the visit should never affect either start time.
-        body.remove('actualStartTime');
-        // If the booking is already seated, also strip expectedStartTime so
-        // the bar denominator stays anchored to the original visit start.
-        // (Leave it alone for not-yet-seated reservations — those edits go
-        // through the edit sheet where moving the slot is intentional.)
-        final isSeated = _statusOverrides[guid]?.endsWith('_SEATED') == true ||
-            (() {
-              for (final b in _bookings()) {
-                if (b['guid'] == guid) {
-                  final s = b['bookingStatus'] as String?;
-                  return s == 'R_SEATED' || s == 'W_SEATED';
-                }
-              }
-              return false;
-            })();
-        if (isSeated) body.remove('expectedStartTime');
         final existing = _bookingEditOverrides[guid] ?? <String, dynamic>{};
-        existing.addAll(body);
+        existing.addAll((options.data as Map).cast<String, dynamic>());
         _bookingEditOverrides[guid] = existing;
       }
     }
@@ -410,11 +380,7 @@ class DemoMockInterceptor extends Interceptor {
       }
     } else if (path.endsWith('/moveV2')) {
       // Move-table action — same body shape as seatV2; only the tables
-      // change (status stays SEATED). Same endpoint serves both drag-drop
-      // and Move-Table-menu flows. Log the request shape so we can tell
-      // the two paths apart in diagnostics (menu fails; drag-drop is slow).
-      // ignore: avoid_print
-      print('[DEMO] moveV2 onRequest: guid=$guid body=$body');
+      // change (status stays SEATED).
       if (body is Map && body['tableGuids'] is List) {
         final tbls = (body['tableGuids'] as List).whereType<String>().toList();
         if (tbls.isNotEmpty) {
@@ -1843,16 +1809,6 @@ class DemoMockInterceptor extends Interceptor {
         b['serviceAreas'] = const <String>['area-dining'];
       }
     }
-
-    // NOTE: third attempt at the AddOnConfig stub also bricked with
-    // Stack Overflow on /bookings, /smsThreads, /orders, /previewEstimateV2.
-    // Shape was verified against the booking_dto.dart freezed source
-    // (guid:String, name:String, quantity:int) and we used non-empty
-    // values this time — still bricked. Whatever the actual cause, it
-    // reliably crashes the demo. Reverting permanently; View Order line
-    // items remain unimplemented and will require a different angle
-    // (e.g. menuSelections instead of addOnConfigs, or modifying
-    // capman-host source).
 
     // NOTE: AddOnConfig stub (intended to trip the /orderPriceSummary
     // fetch gate) bricks all bookings in some way I haven't diagnosed —
