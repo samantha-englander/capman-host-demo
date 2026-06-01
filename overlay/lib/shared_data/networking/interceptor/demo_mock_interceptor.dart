@@ -1508,14 +1508,17 @@ class DemoMockInterceptor extends Interceptor {
     }
 
     // Scripted notification demo (paired with nv1-in-app-notifications ON).
-    // Each /bookings poll bumps _bookingsPollCount; we cumulatively apply
-    // one additional mutation per cycle so capman-host's BookingAlertsBloc
-    // emits one of each alert type in sequence (it diffs against the
-    // previous emission and suppresses the very first poll's contents).
-    // Timing: 10s polling cadence → all four alerts visible within ~40s.
-    final iso = DateTime.now().toIso8601String();
-    // Poll ≥2 — BookingChangeAlert: bump res-3 (Hannah Lewis) party 2→3
+    // capman-host's BookingAlertsBloc derives alerts from booking-list
+    // diffs between consecutive emissions, and suppresses the very first
+    // emission via _sessionStartTime. To populate the bell quickly, we
+    // apply ALL four mutations cumulatively starting at poll ≥2 — so the
+    // bloc's second observed list contains four distinct booking changes
+    // and emits four separate alerts in one batch (~10s after load).
+    // Mutations affect different bookings, so the 500ms merge window
+    // (which only coalesces edits to the same booking) won't combine them.
     if (_bookingsPollCount >= 2) {
+      final iso = DateTime.now().toIso8601String();
+      // BookingChangeAlert — Hannah Lewis res-3 party 2→3
       for (final b in list) {
         if (b['guid'] == 'res-3') {
           b['partySize'] = 3;
@@ -1523,9 +1526,7 @@ class DemoMockInterceptor extends Interceptor {
           break;
         }
       }
-    }
-    // Poll ≥3 — BookingCancellationAlert: cancel res-11 (Lauren Richardson)
-    if (_bookingsPollCount >= 3) {
+      // BookingCancellationAlert — Lauren Richardson res-11 cancelled
       for (final b in list) {
         if (b['guid'] == 'res-11') {
           b['bookingStatus'] = 'R_CANCELLED';
@@ -1533,18 +1534,15 @@ class DemoMockInterceptor extends Interceptor {
           break;
         }
       }
-    }
-    // Poll ≥4 — NewBookingAlert: Suzie Smith, party 2, 40 min from now
-    if (_bookingsPollCount >= 4) {
+      // NewBookingAlert — Suzie Smith party of 2 in 40 min
       final hasSuzie = list.any((b) => b['guid'] == 'demo-notif-suzie');
       if (!hasSuzie) {
-        final start = DateTime.now().add(const Duration(minutes: 40));
         list.add(_booking(
           guid: 'demo-notif-suzie',
           type: 'RESERVATION',
           status: 'R_CONFIRMED',
           partySize: 2,
-          start: start,
+          start: DateTime.now().add(const Duration(minutes: 40)),
           tables: const <String>[],
           areas: const <String>[],
           firstName: 'Suzie',
@@ -1554,18 +1552,15 @@ class DemoMockInterceptor extends Interceptor {
           created: DateTime.now(),
         ));
       }
-    }
-    // Poll ≥5 — LargePartyAlert: Marcus Williams, party 10, 90 min out
-    if (_bookingsPollCount >= 5) {
+      // LargePartyAlert — Marcus Williams party of 10 in 90 min
       final hasMarcus = list.any((b) => b['guid'] == 'demo-notif-marcus');
       if (!hasMarcus) {
-        final start = DateTime.now().add(const Duration(minutes: 90));
         list.add(_booking(
           guid: 'demo-notif-marcus',
           type: 'RESERVATION',
           status: 'R_CONFIRMED',
           partySize: 10,
-          start: start,
+          start: DateTime.now().add(const Duration(minutes: 90)),
           tables: const <String>[],
           areas: const <String>[],
           firstName: 'Marcus',
