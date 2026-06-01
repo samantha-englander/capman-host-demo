@@ -49,6 +49,12 @@ class DemoMockInterceptor extends Interceptor {
   // prior cache and emit one alert per type.
   final DateTime _sessionStart = DateTime.now();
   bool _notifMutationsApplied = false;
+  // Guids of reservations bumped to a new table by the most recent
+  // seatV2/moveV2 PATCH. Read by the PATCH response handler so the bumped
+  // bookings ride back in the SeatActionDto list — the app merges each
+  // booking into local state, which is the only way Kathy's reassignment
+  // becomes visible (no /bookings re-fetch ever happens during a session).
+  List<String> _lastBumpedGuids = const [];
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -475,7 +481,9 @@ class DemoMockInterceptor extends Interceptor {
     int seatingPartySize,
     String seatingGuid,
   ) {
+    _lastBumpedGuids = const [];
     if (occupiedTables.isEmpty) return;
+    final bumped = <String>[];
     final occupiedUntil = occupiedFrom.add(const Duration(minutes: 90));
     for (final b in _bookings()) {
       final bGuid = b['guid'] as String?;
@@ -502,8 +510,10 @@ class DemoMockInterceptor extends Interceptor {
           'wasOn=$tables, conflictsWith=$occupiedTables) → $replacement');
       if (replacement.isNotEmpty) {
         _tableAssignmentOverrides[bGuid] = replacement;
+        bumped.add(bGuid);
       }
     }
+    _lastBumpedGuids = bumped;
   }
 
   /// Create-booking endpoints (POST /booking/waitlist | /booking/reservation).
@@ -516,6 +526,11 @@ class DemoMockInterceptor extends Interceptor {
   /// (or silently failed and the row never appeared in the list).
   void _captureNewBooking(String path, dynamic body) {
     if (body is! Map) return;
+    // ignore: avoid_print
+    print('[DEMO] _captureNewBooking body keys=${body.keys.toList()} '
+        'serviceAreaGuids=${body['serviceAreaGuids']} '
+        'serviceAreas=${body['serviceAreas']} '
+        'tableGuids=${body['tableGuids']}');
     final isWaitlist = path.endsWith('/waitlist');
     final guid = 'demo-${DateTime.now().microsecondsSinceEpoch}';
     final partySize = (body['partySize'] as int?) ?? 2;
@@ -821,11 +836,28 @@ class DemoMockInterceptor extends Interceptor {
           || path.endsWith('/moveV2')
           || path.endsWith('/serverV2');
       if (isSeatAction) {
-        return {
-          'results': found != null
-              ? [{'order': null, 'booking': found}]
-              : <dynamic>[],
-        };
+        // Include any reservations the seat/move just auto-bumped. The app
+        // merges each SeatActionDto's booking into local state by guid, so
+        // riding the bumped bookings back here is the only way Kathy's new
+        // table assignment becomes visible — /bookings is never re-fetched
+        // during a session.
+        final results = <Map<String, dynamic>>[];
+        if (found != null) {
+          results.add({'order': null, 'booking': found});
+        }
+        if (_lastBumpedGuids.isNotEmpty) {
+          for (final b in all) {
+            if (_lastBumpedGuids.contains(b['guid'])) {
+              results.add({'order': null, 'booking': b});
+            }
+          }
+          // ignore: avoid_print
+          print('[DEMO] seatV2 response: returning '
+              '${results.length} SeatActionDto(s) '
+              '(seated=${found?['guid']}, bumped=$_lastBumpedGuids)');
+          _lastBumpedGuids = const [];
+        }
+        return {'results': results};
       }
       // All other booking PATCHes (statusV2, confirmV2, noShowV2, cancel,
       // reservation, waitlist, leftBuilding) parse as List<BookingDto>.
