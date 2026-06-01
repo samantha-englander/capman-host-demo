@@ -749,7 +749,55 @@ class DemoMockInterceptor extends Interceptor {
       // works (satisfies the downstream `.first` that was crashing).
       return {'message': null, 'results': [_currentBlockConfig()]};
     }
-    if (method == 'GET' && path.contains('/app/orders')) return {'results': <dynamic>[]};
+    // Synthesize one OrderDto per currently-seated booking so the floor-plan
+    // tile + booking row paint ORDERED / PAID (instead of just SEATED).
+    // _determineTableSeatStatus reads order.status: ORDERED→ordered(),
+    // PAID/CLOSED/VOIDED/COMPLETED→paid(). The tile lookup is keyed by
+    // order.tableGuids — so we MUST include the booking's tables there.
+    // _syntheticOrderState bins by elapsed-since-seated: <15min IDLE,
+    // 15-75 ORDERED, 75+ PAID. IDLE has no OrderStatus equivalent that
+    // would change visual state, so we skip emitting an order for IDLE
+    // parties (they stay plain SEATED).
+    if (method == 'GET' && path.contains('/app/orders')) {
+      final orders = <Map<String, dynamic>>[];
+      final now = DateTime.now();
+      for (final b in _bookings()) {
+        final status = b['bookingStatus'] as String?;
+        if (status != 'R_SEATED' && status != 'W_SEATED') continue;
+        final tables = ((b['tables'] as List?) ?? const [])
+            .whereType<String>()
+            .toList();
+        if (tables.isEmpty) continue;
+        final startStr = (b['actualStartTime'] as String?) ??
+            (b['expectedStartTime'] as String?);
+        final start = startStr == null ? null : DateTime.tryParse(startStr);
+        if (start == null) continue;
+        final elapsedMin = now.difference(start).inMinutes;
+        final synthetic = _syntheticOrderState(b, elapsedMin);
+        // Skip IDLE — no distinct visual state.
+        if (synthetic == 'IDLE') continue;
+        final guid = b['guid'] as String;
+        final firstOrdered = start.add(const Duration(minutes: 15));
+        orders.add({
+          'guid': 'order-$guid',
+          'completed': synthetic == 'PAID',
+          'status': synthetic,  // 'ORDERED' or 'PAID' — match OrderStatus @JsonValue
+          'createdAt': start.toIso8601String(),
+          'bookingGuid': guid,
+          'tableGuid': tables.first,
+          'tableGuids': tables,
+          'serverGuid': b['server'] is String ? b['server'] : null,
+          'partySize': b['partySize'],
+          'modifiedAt': now.toIso8601String(),
+          'course': null,
+          'menuItems': null,
+          'orderTotal': null,
+          'paidTime': synthetic == 'PAID' ? now.toIso8601String() : null,
+          'firstOrderedTime': firstOrdered.toIso8601String(),
+        });
+      }
+      return {'results': orders};
+    }
     // Order completion / linking — parsed as List<OrderDto>. Empty results is safe.
     if (method == 'PATCH' && path.contains('/orders/')) return {'results': <dynamic>[]};
 
