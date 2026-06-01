@@ -32,6 +32,13 @@ class DemoMockInterceptor extends Interceptor {
   // a brand-new RESERVATION-typed booking under a new guid; this map lets
   // the seatV2 response handler look up which new booking to echo back.
   final Map<String, String> _walkinSeatRemap = {};
+  // Scripted notification demo: capman-host's BookingAlertsBloc derives
+  // alerts from booking-list diffs between consecutive polls. To surface
+  // one of each alert type (BookingChange / Cancellation / NewBooking /
+  // LargeParty), we apply mutations cumulatively across the first few
+  // /bookings polls after session start. Each new mutation lands in its
+  // own poll cycle so the bloc emits a distinct alert per type.
+  int _bookingsPollCount = 0;
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -570,7 +577,12 @@ class DemoMockInterceptor extends Interceptor {
     if (method == 'GET' && (path.endsWith('/tables') || path.contains('/app/tables'))) return {'results': _allTables()};
 
     // Bookings — parseJsonList → {"results": [...]}
-    if (method == 'GET' && path.endsWith('/bookings')) return {'results': _bookings()};
+    if (method == 'GET' && path.endsWith('/bookings')) {
+      // Step the scripted-notification counter on every /bookings poll so
+      // _bookings() can apply one additional mutation per cycle.
+      _bookingsPollCount++;
+      return {'results': _bookings()};
+    }
     // GET /booking/v2/app/booking/{guid}/orderPriceSummary — fires when the
     // user opens a seated booking's detail screen ("View order"). Returns
     // List<OrderPriceSummaryDto>. Deterministic per guid + party size so the
@@ -1492,6 +1504,77 @@ class DemoMockInterceptor extends Interceptor {
           final cur = (b['notificationCount'] as int?) ?? 0;
           b['notificationCount'] = cur < 1 ? 1 : cur;
         }
+      }
+    }
+
+    // Scripted notification demo (paired with nv1-in-app-notifications ON).
+    // Each /bookings poll bumps _bookingsPollCount; we cumulatively apply
+    // one additional mutation per cycle so capman-host's BookingAlertsBloc
+    // emits one of each alert type in sequence (it diffs against the
+    // previous emission and suppresses the very first poll's contents).
+    // Timing: 10s polling cadence → all four alerts visible within ~40s.
+    final iso = DateTime.now().toIso8601String();
+    // Poll ≥2 — BookingChangeAlert: bump res-3 (Hannah Lewis) party 2→3
+    if (_bookingsPollCount >= 2) {
+      for (final b in list) {
+        if (b['guid'] == 'res-3') {
+          b['partySize'] = 3;
+          b['modifiedDate'] = iso;
+          break;
+        }
+      }
+    }
+    // Poll ≥3 — BookingCancellationAlert: cancel res-11 (Lauren Richardson)
+    if (_bookingsPollCount >= 3) {
+      for (final b in list) {
+        if (b['guid'] == 'res-11') {
+          b['bookingStatus'] = 'R_CANCELLED';
+          b['cancelledTime'] ??= iso;
+          break;
+        }
+      }
+    }
+    // Poll ≥4 — NewBookingAlert: Suzie Smith, party 2, 40 min from now
+    if (_bookingsPollCount >= 4) {
+      final hasSuzie = list.any((b) => b['guid'] == 'demo-notif-suzie');
+      if (!hasSuzie) {
+        final start = DateTime.now().add(const Duration(minutes: 40));
+        list.add(_booking(
+          guid: 'demo-notif-suzie',
+          type: 'RESERVATION',
+          status: 'R_CONFIRMED',
+          partySize: 2,
+          start: start,
+          tables: const <String>[],
+          areas: const <String>[],
+          firstName: 'Suzie',
+          lastName: 'Smith',
+          phone: '16505550111',
+          email: 'suzie.smith@fakemail.com',
+          created: DateTime.now(),
+        ));
+      }
+    }
+    // Poll ≥5 — LargePartyAlert: Marcus Williams, party 10, 90 min out
+    if (_bookingsPollCount >= 5) {
+      final hasMarcus = list.any((b) => b['guid'] == 'demo-notif-marcus');
+      if (!hasMarcus) {
+        final start = DateTime.now().add(const Duration(minutes: 90));
+        list.add(_booking(
+          guid: 'demo-notif-marcus',
+          type: 'RESERVATION',
+          status: 'R_CONFIRMED',
+          partySize: 10,
+          start: start,
+          tables: const <String>[],
+          areas: const <String>[],
+          firstName: 'Marcus',
+          lastName: 'Williams',
+          phone: '16505550222',
+          email: 'marcus.williams@fakemail.com',
+          created: DateTime.now(),
+          notes: 'Corporate dinner — large party booking.',
+        ));
       }
     }
 

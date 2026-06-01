@@ -17,11 +17,15 @@ class DemoFeatureFlagService implements FeatureFlagService {
     'nv1-home-tab-redesign',
     // Theme picker in drawer Settings — polished low-risk demo moment.
     'nv1-app-theme-selection',
+    // In-app notifications panel — client-side alert generator that watches
+    // booking mutations. Paired with a scripted mutation sequence in the
+    // interceptor's /bookings handler so one of each alert type fires
+    // shortly after demo start.
+    'nv1-in-app-notifications',
   };
   // Flags we explicitly leave OFF:
   //   nv1-ticketed-events-host-app  (not in demo narrative — would show an
   //                                   empty events surface)
-  //   nv1-in-app-notifications      (WIP server-side; would show empty UI)
 
   @override
   Future<void> init({required String? restaurantGuid, required String? managementGroupGuid}) async {}
