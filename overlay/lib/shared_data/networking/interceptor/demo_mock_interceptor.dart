@@ -1495,6 +1495,22 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
+    // Gate fix: BookingDetailsBloc only fetches /orderPriceSummary when the
+    // booking has non-empty menuSelections OR addOnConfigs. Without this,
+    // tapping into an ORDERED/PAID booking shows no check / line items.
+    // Stamp a placeholder menuSelections on every seated booking so the
+    // bloc kicks off the fetch — actual line items come from our
+    // _orderPriceSummary synthesis.
+    for (final b in list) {
+      final s = b['bookingStatus'] as String?;
+      if (s == 'R_SEATED' || s == 'W_SEATED') {
+        final ms = b['menuSelections'];
+        if (ms is! List || ms.isEmpty) {
+          b['menuSelections'] = <String>['placeholder'];
+        }
+      }
+    }
+
     return list;
   }
 
