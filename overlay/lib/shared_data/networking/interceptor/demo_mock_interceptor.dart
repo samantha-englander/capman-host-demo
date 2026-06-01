@@ -39,22 +39,6 @@ class DemoMockInterceptor extends Interceptor {
   // /bookings polls after session start. Each new mutation lands in its
   // own poll cycle so the bloc emits a distinct alert per type.
   int _bookingsPollCount = 0;
-  // Wall-clock anchor for the scripted-notification trigger. The app only
-  // hits GET /bookings once (initial load); the 10s poller fetches the
-  // "update set" — employees/smsThreads/tableStates/blocks/orders — so a
-  // poll-count gate on /bookings never trips a second time. Instead, we
-  // apply notification mutations the first time _bookings() is read more
-  // than ~15s after session start. The bloc's internal list rebroadcasts
-  // on any change, so the mutated snapshot will be diffed against its
-  // prior cache and emit one alert per type.
-  final DateTime _sessionStart = DateTime.now();
-  bool _notifMutationsApplied = false;
-  // Guids of reservations bumped to a new table by the most recent
-  // seatV2/moveV2 PATCH. Read by the PATCH response handler so the bumped
-  // bookings ride back in the SeatActionDto list — the app merges each
-  // booking into local state, which is the only way Kathy's reassignment
-  // becomes visible (no /bookings re-fetch ever happens during a session).
-  List<String> _lastBumpedGuids = const [];
   // Tables the host has explicitly blocked via the floor-plan menu. Feeds
   // the BlockConfig response so capman-host's BlockConfigRepository picks
   // up the change. Kept as a flat set — demo is single-day so we don't
@@ -481,9 +465,7 @@ class DemoMockInterceptor extends Interceptor {
     int seatingPartySize,
     String seatingGuid,
   ) {
-    _lastBumpedGuids = const [];
     if (occupiedTables.isEmpty) return;
-    final bumped = <String>[];
     final occupiedUntil = occupiedFrom.add(const Duration(minutes: 90));
     for (final b in _bookings()) {
       final bGuid = b['guid'] as String?;
@@ -510,10 +492,8 @@ class DemoMockInterceptor extends Interceptor {
           'wasOn=$tables, conflictsWith=$occupiedTables) → $replacement');
       if (replacement.isNotEmpty) {
         _tableAssignmentOverrides[bGuid] = replacement;
-        bumped.add(bGuid);
       }
     }
-    _lastBumpedGuids = bumped;
   }
 
   /// Create-booking endpoints (POST /booking/waitlist | /booking/reservation).
@@ -836,28 +816,20 @@ class DemoMockInterceptor extends Interceptor {
           || path.endsWith('/moveV2')
           || path.endsWith('/serverV2');
       if (isSeatAction) {
-        // Include any reservations the seat/move just auto-bumped. The app
-        // merges each SeatActionDto's booking into local state by guid, so
-        // riding the bumped bookings back here is the only way Kathy's new
-        // table assignment becomes visible — /bookings is never re-fetched
-        // during a session.
-        final results = <Map<String, dynamic>>[];
-        if (found != null) {
-          results.add({'order': null, 'booking': found});
-        }
-        if (_lastBumpedGuids.isNotEmpty) {
-          for (final b in all) {
-            if (_lastBumpedGuids.contains(b['guid'])) {
-              results.add({'order': null, 'booking': b});
-            }
-          }
-          // ignore: avoid_print
-          print('[DEMO] seatV2 response: returning '
-              '${results.length} SeatActionDto(s) '
-              '(seated=${found?['guid']}, bumped=$_lastBumpedGuids)');
-          _lastBumpedGuids = const [];
-        }
-        return {'results': results};
+        // Return only the seated/moved booking. Auto-bumped reservations
+        // (if any) update _tableAssignmentOverrides server-side, but we do
+        // NOT ride them back in the response. The BookingAlertsBloc diffs
+        // booking-list changes into alerts; riding bumped bookings back
+        // fires a spurious BookingChange alert for the bump. By design,
+        // host-initiated activity is suppressed by the real product —
+        // the demo mirrors that by hiding system-side bump consequences
+        // from the app's view. The bumped reservation stays visually on
+        // its old table for the rest of the session, but no false alert.
+        return {
+          'results': found != null
+              ? [{'order': null, 'booking': found}]
+              : <dynamic>[],
+        };
       }
       // All other booking PATCHes (statusV2, confirmV2, noShowV2, cancel,
       // reservation, waitlist, leftBuilding) parse as List<BookingDto>.
@@ -1628,95 +1600,73 @@ class DemoMockInterceptor extends Interceptor {
       }
     }
 
-    // Scripted notification demo (paired with nv1-in-app-notifications ON).
-    // capman-host's BookingAlertsBloc derives alerts from booking-list
-    // diffs between consecutive emissions, and suppresses the very first
-    // emission via _sessionStartTime. To populate the bell quickly, we
-    // apply ALL four mutations cumulatively starting at poll ≥2 — so the
-    // bloc's second observed list contains four distinct booking changes
-    // and emits four separate alerts in one batch (~10s after load).
-    // Mutations affect different bookings, so the 500ms merge window
-    // (which only coalesces edits to the same booking) won't combine them.
-    // Notification victims must be cached by the BookingAlertsBloc on
-    // poll 1 so poll 2's mutations register as diffs. The bloc skips
-    // uncached bookings whose modifiedAt < _sessionStartTime — our seed
-    // sets modifiedDate to days-old createdDate, which would cause the
-    // victims to get skipped permanently. Override modifiedDate to "now"
-    // (after bloc construction) so they qualify for the cache. createdDate
-    // stays old so they don't trigger NewBookingAlert (they fail the
-    // _wasModifiedSinceCreation check, so the bloc just caches them).
+    // Pre-populated notifications (paired with nv1-in-app-notifications ON).
+    // Design intent: the bell should show one of each alert type — Change,
+    // Cancellation, NewBooking, LargeParty — already present when the demo
+    // starts. The capman-host BookingAlertsBloc surfaces alerts based on
+    // booking-list state, suppressing changes the host makes themselves
+    // mid-session (the host knows what they just did). So we don't need
+    // to fake live notifications during the session — only the initial
+    // pre-populated set. All four victims are stamped into their final
+    // alertable state every time _bookings() is read, which means they
+    // appear on the very first /bookings emission. No time gate.
     final nowIso = DateTime.now().toIso8601String();
+    // BookingChangeAlert — Daniel Brooks party 4→3 (notif-modify seed)
     for (final b in list) {
-      final g = b['guid'];
-      if (g == 'notif-cancel' || g == 'notif-modify') {
+      if (b['guid'] == 'notif-modify') {
+        b['partySize'] = 3;
         b['modifiedDate'] = nowIso;
+        break;
       }
     }
-
-    final elapsed = DateTime.now().difference(_sessionStart);
-    final shouldApplyNotifs = elapsed.inSeconds >= 15;
-    if (shouldApplyNotifs && !_notifMutationsApplied) {
-      _notifMutationsApplied = true;
-      // ignore: avoid_print
-      print('[DEMO] notif-script: applying mutations at '
-          '${elapsed.inSeconds}s elapsed (list size before = ${list.length})');
+    // BookingCancellationAlert — Megan Howard cancelled (notif-cancel seed)
+    for (final b in list) {
+      if (b['guid'] == 'notif-cancel') {
+        b['bookingStatus'] = 'R_CANCELLED';
+        b['cancelledTime'] ??= nowIso;
+        b['modifiedDate'] = nowIso;
+        b['dismissToHistory'] = true;
+        break;
+      }
     }
-    if (shouldApplyNotifs) {
-      final iso = DateTime.now().toIso8601String();
-      // BookingChangeAlert — Daniel Brooks party 4→3 (victim seed)
-      for (final b in list) {
-        if (b['guid'] == 'notif-modify') {
-          b['partySize'] = 3;
-          b['modifiedDate'] = iso;
-          break;
-        }
-      }
-      // BookingCancellationAlert — Megan Howard cancelled (victim seed)
-      for (final b in list) {
-        if (b['guid'] == 'notif-cancel') {
-          b['bookingStatus'] = 'R_CANCELLED';
-          b['cancelledTime'] ??= iso;
-          b['modifiedDate'] = iso;
-          break;
-        }
-      }
-      // NewBookingAlert — Suzie Smith party of 2 in 40 min
-      final hasSuzie = list.any((b) => b['guid'] == 'demo-notif-suzie');
-      if (!hasSuzie) {
-        list.add(_booking(
-          guid: 'demo-notif-suzie',
-          type: 'RESERVATION',
-          status: 'R_CONFIRMED',
-          partySize: 2,
-          start: DateTime.now().add(const Duration(minutes: 40)),
-          tables: const <String>[],
-          areas: const <String>[],
-          firstName: 'Suzie',
-          lastName: 'Smith',
-          phone: '16505550111',
-          email: 'suzie.smith@fakemail.com',
-          created: DateTime.now(),
-        ));
-      }
-      // LargePartyAlert — Marcus Williams party of 10 in 90 min
-      final hasMarcus = list.any((b) => b['guid'] == 'demo-notif-marcus');
-      if (!hasMarcus) {
-        list.add(_booking(
-          guid: 'demo-notif-marcus',
-          type: 'RESERVATION',
-          status: 'R_CONFIRMED',
-          partySize: 10,
-          start: DateTime.now().add(const Duration(minutes: 90)),
-          tables: const <String>[],
-          areas: const <String>[],
-          firstName: 'Marcus',
-          lastName: 'Williams',
-          phone: '16505550222',
-          email: 'marcus.williams@fakemail.com',
-          created: DateTime.now(),
-          notes: 'Corporate dinner — large party booking.',
-        ));
-      }
+    // NewBookingAlert — Suzie Smith party of 2 in 40 min.
+    // createdDate == modifiedDate == now so the bloc treats her as freshly
+    // created (passes the _wasModifiedSinceCreation == false check).
+    final hasSuzie = list.any((b) => b['guid'] == 'demo-notif-suzie');
+    if (!hasSuzie) {
+      list.add(_booking(
+        guid: 'demo-notif-suzie',
+        type: 'RESERVATION',
+        status: 'R_CONFIRMED',
+        partySize: 2,
+        start: DateTime.now().add(const Duration(minutes: 40)),
+        tables: const <String>[],
+        areas: const <String>[],
+        firstName: 'Suzie',
+        lastName: 'Smith',
+        phone: '16505550111',
+        email: 'suzie.smith@fakemail.com',
+        created: DateTime.now(),
+      ));
+    }
+    // LargePartyAlert — Marcus Williams party of 10 in 90 min.
+    final hasMarcus = list.any((b) => b['guid'] == 'demo-notif-marcus');
+    if (!hasMarcus) {
+      list.add(_booking(
+        guid: 'demo-notif-marcus',
+        type: 'RESERVATION',
+        status: 'R_CONFIRMED',
+        partySize: 10,
+        start: DateTime.now().add(const Duration(minutes: 90)),
+        tables: const <String>[],
+        areas: const <String>[],
+        firstName: 'Marcus',
+        lastName: 'Williams',
+        phone: '16505550222',
+        email: 'marcus.williams@fakemail.com',
+        created: DateTime.now(),
+        notes: 'Corporate dinner — large party booking.',
+      ));
     }
 
     // NOTE: AddOnConfig stub (intended to trip the /orderPriceSummary
