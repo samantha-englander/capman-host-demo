@@ -123041,61 +123041,61 @@ if(a6==null)a6=A.M(t.N,t.z)
 a6.l(0,b6,!0)
 s.l(0,f,a6)}}if(o&&B.f.cS(q,"/undoBookingStatus"))a7.aUr(q)
 b8.ak(A.aK4(a7.bin(r,q,p),null,null,!1,B.IB,b7,200,"OK",t.z))},
-aUp(a8,a9){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0=this,a1="bookingGuids",a2=null,a3="bookingStatus",a4="CONFIRMED",a5="tableGuids",a6="RESERVATION",a7="R_SEATED"
-if(B.f.cS(a8,"/doneV2")||B.f.cS(a8,"/leftBuilding")){s=A.a([],t.s)
-if(t.G.b(a9)&&t._.b(a9.j(0,a1)))for(r=J.aY(t._.a(a9.j(0,a1))),q=a0.c;r.A();){p=r.gL(r)
+aUp(b0,b1){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1=this,a2="bookingGuids",a3=null,a4="bookingStatus",a5="CONFIRMED",a6="bookingType",a7="tableGuids",a8="RESERVATION",a9="R_SEATED"
+if(B.f.cS(b0,"/doneV2")||B.f.cS(b0,"/leftBuilding")){s=A.a([],t.s)
+if(t.G.b(b1)&&t._.b(b1.j(0,a2)))for(r=J.aY(t._.a(b1.j(0,a2))),q=a1.c;r.A();){p=r.gL(r)
 if(typeof p=="string"&&p.length!==0){q.l(0,p,B.f.b7(p,"wait-")?"W_DONE":"R_DONE")
-s.push(p)}}a0.CW=s
-return}o=B.c.ga_(B.c.gau(a8.split("/booking/")).split("/"))
+s.push(p)}}a1.CW=s
+return}o=B.c.ga_(B.c.gau(b0.split("/booking/")).split("/"))
 if(o.length===0)return
 n=B.f.b7(o,"wait-")
 m=new A.bvM(n)
-if(B.f.cS(a8,"/statusV2"))l=t.G.b(a9)&&typeof a9.j(0,a3)=="string"?A.ai(a9.j(0,a3)):a2
-else if(B.f.cS(a8,"/confirmV2"))l=m.$1(a4)
-else if(B.f.cS(a8,"/noShowV2"))l=m.$1("NO_SHOW")
-else{l=a2
-if(B.f.cS(a8,"/seatV2"))if(B.f.b7(o,"demo-")){r=a0.ch
-q=r.length
-j=0
-for(;;){if(!(j<r.length)){k=a2
-break}i=r[j]
-if(J.o(i.j(0,"guid"),o)){k=i
-break}r.length===q||(0,A.a_)(r);++j}if(k!=null){B.c.M(r,k)
-if(t.G.b(a9)&&t._.b(a9.j(0,a5))){q=J.A8(t._.a(a9.j(0,a5)),t.N)
-h=A.H(q,q.$ti.h("L.E"))}else h=A.a([],t.s)
-g=new A.aX(Date.now(),0,!1).d2()
-f="demo-seat-"+1000*Date.now()
-e=A.l0(k,t.N,t.z)
-e.l(0,"guid",f)
-e.l(0,"bookingType",a6)
-e.l(0,a3,a7)
-e.l(0,"tables",h)
-e.l(0,"actualStartTime",g)
-d=new A.aX(Date.now(),0,!1).bd(-1728e8).d2()
-e.l(0,"modifiedDate",d)
-e.l(0,"createdDate",d)
-r.push(e)
-a0.f.l(0,o,f)
-c=A.f2(e.j(0,"partySize"))
-if(c==null)c=2
-a0.a1F(h,new A.aX(Date.now(),0,!1),c,f)}}else{l=n?"W_SEATED":a7
-if(!n)a0.e.l(0,o,a6)
-if(t.G.b(a9)&&t._.b(a9.j(0,a5))){r=J.A8(t._.a(a9.j(0,a5)),t.N)
-h=A.H(r,r.$ti.h("L.E"))
-if(h.length!==0){a0.d.l(0,o,h)
-a0.a1F(h,new A.aX(Date.now(),0,!1),2,o)}}}else if(B.f.cS(a8,"/moveV2")){r=t.G.b(a9)
-if(r){q=A.J(a9).h("c4<1>")
-q=A.H(new A.c4(a9,q),q.h("L.E"))}else q=J.C(a9)
+if(B.f.cS(b0,"/statusV2"))l=t.G.b(b1)&&typeof b1.j(0,a4)=="string"?A.ai(b1.j(0,a4)):a3
+else if(B.f.cS(b0,"/confirmV2"))l=m.$1(a5)
+else if(B.f.cS(b0,"/noShowV2"))l=m.$1("NO_SHOW")
+else{l=a3
+if(B.f.cS(b0,"/seatV2")){r=B.f.b7(o,"demo-")
+k=a3
+if(r)for(q=a1.ch,j=q.length,i=0;i<q.length;q.length===j||(0,A.a_)(q),++i){h=q[i]
+if(J.o(h.j(0,"guid"),o)){k=h
+break}}g=k!=null&&J.o(k.j(0,a6),"WAITLIST")
+if(r&&g){r=a1.ch
+B.c.M(r,k)
+if(t.G.b(b1)&&t._.b(b1.j(0,a7))){q=J.A8(t._.a(b1.j(0,a7)),t.N)
+f=A.H(q,q.$ti.h("L.E"))}else f=A.a([],t.s)
+e=new A.aX(Date.now(),0,!1).d2()
+d="demo-seat-"+1000*Date.now()
+c=A.l0(k,t.N,t.z)
+c.l(0,"guid",d)
+c.l(0,a6,a8)
+c.l(0,a4,a9)
+c.l(0,"tables",f)
+c.l(0,"actualStartTime",e)
+b=new A.aX(Date.now(),0,!1).bd(-1728e8).d2()
+c.l(0,"modifiedDate",b)
+c.l(0,"createdDate",b)
+r.push(c)
+a1.f.l(0,o,d)
+a=A.f2(c.j(0,"partySize"))
+if(a==null)a=2
+a1.a1F(f,new A.aX(Date.now(),0,!1),a,d)}else{l=n?"W_SEATED":a9
+if(!n)a1.e.l(0,o,a8)
+if(t.G.b(b1)&&t._.b(b1.j(0,a7))){r=J.A8(t._.a(b1.j(0,a7)),t.N)
+f=A.H(r,r.$ti.h("L.E"))
+if(f.length!==0){a1.d.l(0,o,f)
+a1.a1F(f,new A.aX(Date.now(),0,!1),2,o)}}}}else if(B.f.cS(b0,"/moveV2")){r=t.G.b(b1)
+if(r){q=A.J(b1).h("c4<1>")
+q=A.H(new A.c4(b1,q),q.h("L.E"))}else q=J.C(b1)
 q=A.d(q)
-b=A.d(r?a9.j(0,a5):a2)
-a=a0.f.j(0,o)
-if(a==null)a="(none)"
-A.nb("[DEMO] moveV2 onRequest: urlGuid="+o+" body="+q+" tableGuids="+b+" remappedGuid="+a)
-if(r&&t._.b(a9.j(0,a5))){r=J.A8(t._.a(a9.j(0,a5)),t.N)
-h=A.H(r,r.$ti.h("L.E"))
-if(h.length!==0){a0.d.l(0,o,h)
-a0.a1F(h,new A.aX(Date.now(),0,!1),2,o)}}}else if(B.f.cS(a8,"/unseatV2")){l=m.$1(a4)
-a0.d.M(0,o)}else l=B.f.cS(a8,"/cancel")?m.$1("CANCELLED"):a2}if(l!=null)a0.c.l(0,o,l)},
+j=A.d(r?b1.j(0,a7):a3)
+a0=a1.f.j(0,o)
+if(a0==null)a0="(none)"
+A.nb("[DEMO] moveV2 onRequest: urlGuid="+o+" body="+q+" tableGuids="+j+" remappedGuid="+a0)
+if(r&&t._.b(b1.j(0,a7))){r=J.A8(t._.a(b1.j(0,a7)),t.N)
+f=A.H(r,r.$ti.h("L.E"))
+if(f.length!==0){a1.d.l(0,o,f)
+a1.a1F(f,new A.aX(Date.now(),0,!1),2,o)}}}else if(B.f.cS(b0,"/unseatV2")){l=m.$1(a5)
+a1.d.M(0,o)}else l=B.f.cS(b0,"/cancel")?m.$1("CANCELLED"):a3}if(l!=null)a1.c.l(0,o,l)},
 aUn(a){var s,r
 if(!t.G.b(a))return
 s=a.j(0,"bookingGuid")
