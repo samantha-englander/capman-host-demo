@@ -25,22 +25,8 @@ cp overlay/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart \
    _capman_host/lib/shared_data/networking/interceptor/demo_mock_interceptor.dart
 cp overlay/lib/shared_data/services/demo_feature_flag_service.dart \
    _capman_host/lib/shared_data/services/demo_feature_flag_service.dart
+cp overlay/lib/entry_point.dart         _capman_host/lib/entry_point.dart
 cp overlay/main_demo.dart               _capman_host/lib/main_demo.dart
-
-echo "==> Patching entry_point.dart highlightsEnabled for DEMO env..."
-# Surgical one-line patch instead of overlaying the whole 431-line file.
-# Source line: highlightsEnabled: environment != Env.TEST,
-# We extend the predicate so feature highlights are also disabled in the
-# demo build (they overlay tooltips on launch and would block the
-# scripted demo flow). Patching in-place means any capman-host change to
-# entry_point.dart automatically lands in the demo on next build — we
-# used to overlay the whole file and silently lose upstream changes on
-# every rebuild.
-sed -i 's|highlightsEnabled: environment != Env.TEST,|highlightsEnabled: environment != Env.TEST \&\& environment != Env.DEMO,|' \
-  _capman_host/lib/entry_point.dart
-grep -q "environment != Env.DEMO" _capman_host/lib/entry_point.dart \
-  && echo "    OK — patch applied." \
-  || { echo "    ERROR: sed failed — source line may have changed. Check entry_point.dart."; exit 1; }
 
 echo "==> Configuring git for HTTPS access to Toast GitHub..."
 git config --global url."https://x-access-token:${TOAST_GITHUB_TOKEN}@github.toasttab.com/".insteadOf "git@github.toasttab.com:"
