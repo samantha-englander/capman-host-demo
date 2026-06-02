@@ -639,8 +639,13 @@ class DemoMockInterceptor extends Interceptor {
     }
 
     // Try to find a real guest record so name/phone render in the list.
+    // Search _guestsAll() — includes seed guestbook AND mid-session
+    // _extraGuests created via POST /guest/. Searching only _guests()
+    // misses freshly-created guests, so the booking renders as the
+    // literal "Walk-In Guest" placeholder even when the host typed a
+    // real name in the Add Reservation form.
     Map<String, dynamic>? guestRec;
-    for (final g in _guests()) {
+    for (final g in _guestsAll()) {
       if (g['guid'] == guestGuid) { guestRec = g; break; }
     }
     final guestObj = guestRec ??
