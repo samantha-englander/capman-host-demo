@@ -946,45 +946,6 @@ class DemoMockInterceptor extends Interceptor {
         // Without this, riding Kathy back with new `tables` fires a
         // BookingChangeAlert because the bloc diffs the list content.
         final results = <Map<String, dynamic>>[];
-        // When seatV2 promoted urlGuid → newGuid (walk-in path), the bloc
-        // still has the OLD urlGuid cached as R_CONFIRMED at the same table.
-        // The floor plan paints from BOTH cached entries — the OLD one keeps
-        // showing the original tile as RESERVED/SEATED even after the new
-        // booking moves. Move actions then update the NEW guid but the OLD
-        // guid's stale cache continues to paint the origin tile. Evict the
-        // old entry by emitting it here as R_DONE + dismissToHistory:true
-        // so the bloc removes it from the active booking cache. trackChange
-        // suppresses any "booking changed" alert the bloc would otherwise
-        // fire for the synthetic done transition.
-        if (path.endsWith('/seatV2') &&
-            _walkinSeatRemap[urlGuid] != null &&
-            urlGuid != guid) {
-          _changeTracker.trackChange(urlGuid);
-          final nowIso = DateTime.now().toIso8601String();
-          results.add({
-            'order': null,
-            'booking': {
-              'guid': urlGuid,
-              'bookingStatus': 'R_DONE',
-              'dismissToHistory': true,
-              'actualEndTime': nowIso,
-              'modifiedDate': nowIso,
-              // Minimal stub — bloc only needs guid + status to evict.
-              // Other fields filled defensively to avoid Freezed parse errors.
-              'partySize': (found?['partySize'] as int?) ?? 2,
-              'tables': const <String>[],
-              'serviceAreas': const <String>[],
-              'bookingType': 'RESERVATION',
-              'expectedStartTime': found?['expectedStartTime'],
-              'expectedEndTime': found?['expectedEndTime'],
-              'actualStartTime': found?['actualStartTime'],
-              'guest': found?['guest'],
-            },
-          });
-          // ignore: avoid_print
-          print('[DEMO] seatV2 evicting old guid $urlGuid '
-              '(promoted to $guid) via synthetic R_DONE');
-        }
         if (found != null) {
           // Include the synthetic OrderDto (when one applies) so a Move Table
           // immediately repaints both the new AND old table tiles. Order guid
