@@ -909,7 +909,12 @@ class DemoMockInterceptor extends Interceptor {
         // BookingChangeAlert because the bloc diffs the list content.
         final results = <Map<String, dynamic>>[];
         if (found != null) {
-          results.add({'order': null, 'booking': found});
+          // Include the synthetic OrderDto (when one applies) so a Move Table
+          // immediately repaints both the new AND old table tiles. Order guid
+          // is stable per booking — the bloc replaces the prior cache entry
+          // pointing at the old `tableGuid`. Without this, the origin tile
+          // stays painted SEATED/PAID until the next /orders poll (~10s).
+          results.add({'order': _syntheticOrderFor(found), 'booking': found});
         }
         if (_lastBumpedGuids.isNotEmpty) {
           for (final bumpedGuid in _lastBumpedGuids) {
@@ -917,7 +922,7 @@ class DemoMockInterceptor extends Interceptor {
           }
           for (final b in all) {
             if (_lastBumpedGuids.contains(b['guid'])) {
-              results.add({'order': null, 'booking': b});
+              results.add({'order': _syntheticOrderFor(b), 'booking': b});
             }
           }
           // ignore: avoid_print
@@ -970,41 +975,9 @@ class DemoMockInterceptor extends Interceptor {
     // parties (they stay plain SEATED).
     if (method == 'GET' && path.contains('/app/orders')) {
       final orders = <Map<String, dynamic>>[];
-      final now = DateTime.now();
       for (final b in _bookings()) {
-        final status = b['bookingStatus'] as String?;
-        if (status != 'R_SEATED' && status != 'W_SEATED') continue;
-        final tables = ((b['tables'] as List?) ?? const [])
-            .whereType<String>()
-            .toList();
-        if (tables.isEmpty) continue;
-        final startStr = (b['actualStartTime'] as String?) ??
-            (b['expectedStartTime'] as String?);
-        final start = startStr == null ? null : DateTime.tryParse(startStr);
-        if (start == null) continue;
-        final elapsedMin = now.difference(start).inMinutes;
-        final synthetic = _syntheticOrderState(b, elapsedMin);
-        // Skip IDLE — no distinct visual state.
-        if (synthetic == 'IDLE') continue;
-        final guid = b['guid'] as String;
-        final firstOrdered = start.add(const Duration(minutes: 15));
-        orders.add({
-          'guid': 'order-$guid',
-          'completed': synthetic == 'PAID',
-          'status': synthetic,  // 'ORDERED' or 'PAID' — match OrderStatus @JsonValue
-          'createdAt': start.toIso8601String(),
-          'bookingGuid': guid,
-          'tableGuid': tables.first,
-          'tableGuids': tables,
-          'serverGuid': b['server'] is String ? b['server'] : null,
-          'partySize': b['partySize'],
-          'modifiedAt': now.toIso8601String(),
-          'course': null,
-          'menuItems': null,
-          'orderTotal': null,
-          'paidTime': synthetic == 'PAID' ? now.toIso8601String() : null,
-          'firstOrderedTime': firstOrdered.toIso8601String(),
-        });
+        final o = _syntheticOrderFor(b);
+        if (o != null) orders.add(o);
       }
       return {'results': orders};
     }
@@ -2230,8 +2203,11 @@ class DemoMockInterceptor extends Interceptor {
           for (final g in row) out.add([g]);
         }
       }
-      // Big rounds (5-6 cap, no pushing)
-      if (partySize <= 6) {
+      // Big rounds (cap 5-6, no pushing). Respect MIN capacity too — a 2-top
+      // landing on a 6-top round (the "Kathy went to t-22" bug) happens when
+      // the predicate is `<= 6` only. Real allocators reject combos where
+      // partySize < table.minCap.
+      if (partySize >= 5 && partySize <= 6) {
         for (final g in _diningRounds) out.add([g]);
       }
       // Pushed 2-tops in each row
@@ -2256,8 +2232,9 @@ class DemoMockInterceptor extends Interceptor {
         }
       }
     } else if (area == 'patio') {
-      // Patio: singles only, cap 4
-      if (partySize <= 4) {
+      // Patio: singles only, min 2 / max 4 (matches _allTables minCap:2 maxCap:4).
+      // Without the min guard, party of 1 lands on a 4-top patio square.
+      if (partySize >= 2 && partySize <= 4) {
         for (final g in _patioTables) out.add([g]);
       }
     }
@@ -2319,6 +2296,51 @@ class DemoMockInterceptor extends Interceptor {
     if (elapsedMin < 15) return 'IDLE';
     if (elapsedMin < 75) return 'ORDERED';
     return 'PAID';
+  }
+
+  /// Build a synthetic OrderDto for [b] if it's currently seated and past
+  /// the IDLE window. Returns null otherwise (no order to emit).
+  ///
+  /// Extracted from the GET /orders handler so the seatV2/moveV2 response
+  /// can also return a fresh OrderDto inline — without this, after a Move
+  /// Table the origin tile stays painted SEATED/PAID until the next /orders
+  /// poll (~10s) because the previously-cached OrderDto still references
+  /// the old `tableGuid`. Order guid is stable (`order-{bookingGuid}`),
+  /// so the bloc replaces the stale entry by guid on next emit.
+  Map<String, dynamic>? _syntheticOrderFor(Map<String, dynamic> b) {
+    final status = b['bookingStatus'] as String?;
+    if (status != 'R_SEATED' && status != 'W_SEATED') return null;
+    final tables = ((b['tables'] as List?) ?? const [])
+        .whereType<String>()
+        .toList();
+    if (tables.isEmpty) return null;
+    final startStr = (b['actualStartTime'] as String?) ??
+        (b['expectedStartTime'] as String?);
+    final start = startStr == null ? null : DateTime.tryParse(startStr);
+    if (start == null) return null;
+    final now = DateTime.now();
+    final elapsedMin = now.difference(start).inMinutes;
+    final synthetic = _syntheticOrderState(b, elapsedMin);
+    if (synthetic == 'IDLE') return null;
+    final guid = b['guid'] as String;
+    final firstOrdered = start.add(const Duration(minutes: 15));
+    return {
+      'guid': 'order-$guid',
+      'completed': synthetic == 'PAID',
+      'status': synthetic,
+      'createdAt': start.toIso8601String(),
+      'bookingGuid': guid,
+      'tableGuid': tables.first,
+      'tableGuids': tables,
+      'serverGuid': b['server'] is String ? b['server'] : null,
+      'partySize': b['partySize'],
+      'modifiedAt': now.toIso8601String(),
+      'course': null,
+      'menuItems': null,
+      'orderTotal': null,
+      'paidTime': synthetic == 'PAID' ? now.toIso8601String() : null,
+      'firstOrderedTime': firstOrdered.toIso8601String(),
+    };
   }
 
   /// Ports `estimateRemainingMinutes` from toast-booking's WaitlistTimeService.
