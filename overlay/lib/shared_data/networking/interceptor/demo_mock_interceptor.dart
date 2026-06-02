@@ -199,9 +199,20 @@ class DemoMockInterceptor extends Interceptor {
     // POST /guest/ — create new guest (used by add-reservation flow before
     // the booking POST fires). Synthesize and stash.
     if (method == 'POST' && path.endsWith('/app/guest/') &&
+        options.data is! Map) {
+      // ignore: avoid_print
+      print('[DEMO] POST /guest/ onRequest SKIPPED — body is not Map, '
+          'it\'s ${options.data?.runtimeType}. Capture failed; response will be empty.');
+    }
+    if (method == 'POST' && path.endsWith('/app/guest/') &&
         options.data is Map) {
       final body = (options.data as Map).cast<String, dynamic>();
       final guid = 'g-${DateTime.now().microsecondsSinceEpoch}';
+      // ignore: avoid_print
+      print('[DEMO] POST /guest/ onRequest captured: '
+          'bodyKeys=${body.keys.toList()} '
+          'firstName=${body['firstName']} '
+          'phoneNumber=${body['phoneNumber']}');
       _extraGuests.add({
         'guid': guid,
         'firstName': body['firstName'] ?? '',
@@ -1121,8 +1132,17 @@ class DemoMockInterceptor extends Interceptor {
     }
     // POST /guest/ (create) and /checkExistingGuest (dedupe lookup).
     if (method == 'POST' && path.endsWith('/app/guest/')) {
-      if (_extraGuests.isEmpty) return {'results': <dynamic>[]};
-      return {'results': [_extraGuests.last]};
+      if (_extraGuests.isEmpty) {
+        // ignore: avoid_print
+        print('[DEMO] POST /guest/ response: _extraGuests EMPTY — returning {results: []}. '
+            'This means onRequest did NOT capture (body wasn\'t a Map, or path mismatch).');
+        return {'results': <dynamic>[]};
+      }
+      final g = _extraGuests.last;
+      // ignore: avoid_print
+      print('[DEMO] POST /guest/ response: guid=${g['guid']} '
+          'firstName=${g['firstName']} fields=${g.keys.toList()}');
+      return {'results': [g]};
     }
     // POST /checkExistingGuest — dedupe lookup before guest creation.
     // Always return empty so the flow proceeds to POST /guest/.
