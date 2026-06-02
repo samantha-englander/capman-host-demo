@@ -869,7 +869,18 @@ class DemoMockInterceptor extends Interceptor {
          path.contains('/app/blockConfig/'))) {
       return {'message': null, 'results': [_currentBlockConfig()]};
     }
-    if (method == 'POST' && path.contains('/booking/')) return {'results': <dynamic>[]};
+    // CRITICAL ORDERING — POST /guest/ and /checkExistingGuest live under
+    // /booking/v1/app/... so their full path contains '/booking/'. Exclude
+    // them here so the specific guest handlers further down can run.
+    // (Same trap as /blocks/ above and /table/dirty below.) The "Add
+    // Reservation" flow POSTs the new guest BEFORE the booking; if this
+    // catch-all returns [] for /guest/, the bloc treats createGuest as a
+    // Failure → silent SWW toast on the create-reservation screen.
+    if (method == 'POST' && path.contains('/booking/') &&
+        !path.contains('/app/guest/') &&
+        !path.contains('/checkExistingGuest')) {
+      return {'results': <dynamic>[]};
+    }
     // CRITICAL ORDERING — /table/dirty and /table/makeAvailable live UNDER
     // /booking/v2/app/... so their full path contains "/booking/". They
     // MUST be handled before the generic PATCH /booking/ catch-all below,
