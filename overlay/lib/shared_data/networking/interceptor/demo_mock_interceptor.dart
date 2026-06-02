@@ -339,24 +339,12 @@ class DemoMockInterceptor extends Interceptor {
       // a new guid so the bloc routes it to the reservation stream from
       // first sight. Seeded waitlist guids (wait-*) stay W_SEATED for
       // the seat-from-waitlist-tab flow.
-      //
-      // CRITICAL: this promotion path is for WAITLIST-origin bookings only.
-      // User-created RESERVATIONS also get a `demo-*` guid (from
-      // _captureNewBooking) — running the promotion on them creates a
-      // phantom `demo-seat-*` record alongside the original, leaving the
-      // bloc with two cache entries for the same party. Subsequent moves
-      // update the `demo-seat-*` entry but the floor plan keeps painting
-      // the original table from the stale `demo-*` entry. Check the
-      // original booking's bookingType BEFORE promoting.
-      Map<String, dynamic>? original;
       if (guid.startsWith('demo-')) {
+        Map<String, dynamic>? original;
         for (final b in _extraBookings) {
           if (b['guid'] == guid) { original = b; break; }
         }
-      }
-      final isWaitlistOrigin =
-          original != null && original['bookingType'] == 'WAITLIST';
-      if (guid.startsWith('demo-') && isWaitlistOrigin) {
+        if (original != null) {
           _extraBookings.remove(original);
           final tbls = (body is Map && body['tableGuids'] is List)
               ? (body['tableGuids'] as List).whereType<String>().toList()
@@ -383,10 +371,10 @@ class DemoMockInterceptor extends Interceptor {
           // Auto-move any unpinned reservation conflicting with this walk-in.
           final partySize = (replacement['partySize'] as int?) ?? 2;
           _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), partySize, newGuid);
+        }
         // Do NOT set _statusOverrides[guid] etc. — the old guid is gone.
       } else {
-        // Seeded wait-* waitlist guids OR user-created RESERVATION demo-*
-        // guids — apply the status override in place, no promotion.
+        // Seeded waitlist or other RESERVATION guid — original behavior.
         final isWaitGuid = guid.startsWith('wait-');
         newStatus = isWaitGuid ? 'W_SEATED' : 'R_SEATED';
         if (!isWaitGuid) {
