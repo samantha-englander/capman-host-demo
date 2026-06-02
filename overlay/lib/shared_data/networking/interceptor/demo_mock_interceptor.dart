@@ -381,6 +381,17 @@ class DemoMockInterceptor extends Interceptor {
     } else if (path.endsWith('/moveV2')) {
       // Move-table action — same body shape as seatV2; only the tables
       // change (status stays SEATED).
+      //
+      // Diagnostic: print every moveV2 onRequest so we can distinguish the
+      // drag-drop path (works, slow) from the Move-Table menu path (fails).
+      // Logs guid + raw body keys; does NOT touch _bookings() so there's
+      // zero recursion risk. Body keys alone will tell us if the menu sends
+      // a different shape (e.g. extra serverGuid, missing tableGuids).
+      // ignore: avoid_print
+      print('[DEMO] moveV2 onRequest: urlGuid=$guid '
+          'body=${body is Map ? body.keys.toList() : body.runtimeType} '
+          'tableGuids=${body is Map ? body['tableGuids'] : null} '
+          'remappedGuid=${_walkinSeatRemap[guid] ?? '(none)'}');
       if (body is Map && body['tableGuids'] is List) {
         final tbls = (body['tableGuids'] as List).whereType<String>().toList();
         if (tbls.isNotEmpty) {
@@ -1184,7 +1195,18 @@ class DemoMockInterceptor extends Interceptor {
     // Safe fallthrough: GET endpoints always return an empty results envelope so
     // parseJsonList never crashes on unhandled paths. Mutations (POST/PATCH/DELETE)
     // return an empty map — the app rarely parses mutation responses strictly.
-    if (method == 'GET') return {'results': <dynamic>[]};
+    //
+    // Diagnostic: print the unhandled path so we can see what the Move-Table
+    // menu is fetching when it fails. If the menu calls e.g. /eligibleTables
+    // and we silently return [], that's the bug. Only logs in the empty
+    // fallthrough path — handled endpoints stay quiet.
+    if (method == 'GET') {
+      // ignore: avoid_print
+      print('[DEMO] UNHANDLED GET (returning empty): $path');
+      return {'results': <dynamic>[]};
+    }
+    // ignore: avoid_print
+    print('[DEMO] UNHANDLED $method (returning {}): $path');
     return <String, dynamic>{};
   }
 
