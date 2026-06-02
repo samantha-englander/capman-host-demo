@@ -123237,26 +123237,26 @@ if(!t._.b(s))return
 r=B.f.u(a,"/dirty")?"DIRTY":"AVAILABLE"
 for(q=J.aY(s),p=this.ay;q.A();){o=q.gL(q)
 if(typeof o=="string"&&o.length!==0)p.l(0,o,r)}},
-bin(c5,c6,c7){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0,b1,b2=this,b3=null,b4="guid",b5="9000000000000001",b6="demo-device-token",b7="managementGroupGuid",b8="8000000000000001",b9="/booking/",c0="/",c1="partySize",c2="employee",c3="rotation",c4="/app/guest/"
-if(B.f.u(c6,"oauth/token"))return A.N(["access_token","demo-access-token","refresh_token","demo-refresh-token","token_type","Bearer","expires_in",86400],t.N,t.z)
-s=c5==="POST"
-if(s&&B.f.u(c6,"devices/tables"))return A.N(["accessToken","demo-device-access-token","refreshToken","demo-device-refresh-token"],t.N,t.z)
-if(B.f.u(c6,"device"))return A.N(["guid",b5,"deviceGuid",b5,"token",b6,"apiToken",b6,"status","ACTIVE"],t.N,t.z)
-r=c5==="GET"
-if(r&&B.f.u(c6,"restaurantAccess")){s=t.N
-return A.N(["results",A.a([A.N(["restaurantGuid","7000000000000001","name","The Demo Kitchen",b7,b8,"restaurantSetGuid",null],s,t.z)],t.H7)],s,t.b5)}if(r&&B.f.cS(c6,"/app/restaurant")){s=t.N
-return A.N(["results",A.a([A.N(["timezone","America/New_York","reservationsEnabled",!0,"waitlistEnabled",!0,"closeOutHour",null,"twoWaySmsEnabled",!1,"orderCreationEnabled",!1,"waitlistNotifySmsEnabled",!0,"reservationNotifySmsEnabled",!0,"locale",null],s,t.z)],t.H7)],s,t.b5)}if(B.f.u(c6,"managementGroup")){s=t.N
-return A.N(["managementGroups",A.a([A.N(["guid",b8,b7,b8,"name","Demo Group"],s,t.z)],t.H7)],s,t.b5)}if(r&&B.f.u(c6,"serviceAreaGroups")){s=t.N
-return A.N(["results",A.a([A.N(["guid","group-main","name","All Areas","serviceAreas",A.a(["area-dining","area-patio"],t.s),"enabled",!0],s,t.z)],t.H7)],s,t.b5)}if(r&&B.f.u(c6,"serviceAreas")){s=t.s
+bin(c6,c7,c8){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0,b1,b2=this,b3=null,b4="guid",b5="9000000000000001",b6="demo-device-token",b7="managementGroupGuid",b8="8000000000000001",b9="/booking/",c0="/",c1="partySize",c2="/app/guest/",c3="/checkExistingGuest",c4="employee",c5="rotation"
+if(B.f.u(c7,"oauth/token"))return A.N(["access_token","demo-access-token","refresh_token","demo-refresh-token","token_type","Bearer","expires_in",86400],t.N,t.z)
+s=c6==="POST"
+if(s&&B.f.u(c7,"devices/tables"))return A.N(["accessToken","demo-device-access-token","refreshToken","demo-device-refresh-token"],t.N,t.z)
+if(B.f.u(c7,"device"))return A.N(["guid",b5,"deviceGuid",b5,"token",b6,"apiToken",b6,"status","ACTIVE"],t.N,t.z)
+r=c6==="GET"
+if(r&&B.f.u(c7,"restaurantAccess")){s=t.N
+return A.N(["results",A.a([A.N(["restaurantGuid","7000000000000001","name","The Demo Kitchen",b7,b8,"restaurantSetGuid",null],s,t.z)],t.H7)],s,t.b5)}if(r&&B.f.cS(c7,"/app/restaurant")){s=t.N
+return A.N(["results",A.a([A.N(["timezone","America/New_York","reservationsEnabled",!0,"waitlistEnabled",!0,"closeOutHour",null,"twoWaySmsEnabled",!1,"orderCreationEnabled",!1,"waitlistNotifySmsEnabled",!0,"reservationNotifySmsEnabled",!0,"locale",null],s,t.z)],t.H7)],s,t.b5)}if(B.f.u(c7,"managementGroup")){s=t.N
+return A.N(["managementGroups",A.a([A.N(["guid",b8,b7,b8,"name","Demo Group"],s,t.z)],t.H7)],s,t.b5)}if(r&&B.f.u(c7,"serviceAreaGroups")){s=t.N
+return A.N(["results",A.a([A.N(["guid","group-main","name","All Areas","serviceAreas",A.a(["area-dining","area-patio"],t.s),"enabled",!0],s,t.z)],t.H7)],s,t.b5)}if(r&&B.f.u(c7,"serviceAreas")){s=t.s
 r=t.H7
 q=t.N
 p=t.z
-return A.N(["results",A.a([A.N(["guid","area-dining","name","Dining Room","tables",A.a(["t-1","t-2","t-3","t-4","t-5","t-11","t-12","t-13","t-14","t-15","t-21","t-22","t-23","t-c1","t-c2","t-c3","t-c4","t-c5","t-c6"],s),"shapes",A.a([b2.bl4("border-counter",545,828,55,"BORDER",130),b2.arH("label-counter",30,"Counter",835,280,"LABEL",115)],r)],q,p),A.N(["guid","area-patio","name","Patio","tables",A.a(["t-p1","t-p2","t-p3","t-p4","t-p5","t-p6"],s),"shapes",[]],q,p)],r)],q,t.b5)}if(r&&B.f.u(c6,"tableStates"))return A.N(["results",b2.asr()],t.N,t.b5)
-if(r)q=B.f.cS(c6,"/tables")||B.f.u(c6,"/app/tables")
+return A.N(["results",A.a([A.N(["guid","area-dining","name","Dining Room","tables",A.a(["t-1","t-2","t-3","t-4","t-5","t-11","t-12","t-13","t-14","t-15","t-21","t-22","t-23","t-c1","t-c2","t-c3","t-c4","t-c5","t-c6"],s),"shapes",A.a([b2.bl4("border-counter",545,828,55,"BORDER",130),b2.arH("label-counter",30,"Counter",835,280,"LABEL",115)],r)],q,p),A.N(["guid","area-patio","name","Patio","tables",A.a(["t-p1","t-p2","t-p3","t-p4","t-p5","t-p6"],s),"shapes",[]],q,p)],r)],q,t.b5)}if(r&&B.f.u(c7,"tableStates"))return A.N(["results",b2.asr()],t.N,t.b5)
+if(r)q=B.f.cS(c7,"/tables")||B.f.u(c7,"/app/tables")
 else q=!1
 if(q)return A.N(["results",b2.PC()],t.N,t.b5)
-if(r&&B.f.cS(c6,"/bookings")){++b2.r
-return A.N(["results",b2.kG()],t.N,t.b5)}if(r&&B.f.cS(c6,"/orderPriceSummary")){o=B.c.ga_(B.c.gau(c6.split(b9)).split(c0))
+if(r&&B.f.cS(c7,"/bookings")){++b2.r
+return A.N(["results",b2.kG()],t.N,t.b5)}if(r&&B.f.cS(c7,"/orderPriceSummary")){o=B.c.ga_(B.c.gau(c7.split(b9)).split(c0))
 s=b2.kG()
 r=s.length
 m=0
@@ -123267,41 +123267,41 @@ break}s.length===r||(0,A.a_)(s);++m}s=n==null
 k=A.aV(s?b3:J.ak(n,"bookingStatus"))
 if(!(k==="R_SEATED"||k==="W_SEATED"))return A.N(["results",[]],t.N,t._)
 j=A.f2(s?b3:J.ak(n,c1))
-return A.N(["results",A.a([b2.bf0(o,j==null?2:j)],t.H7)],t.N,t.b5)}if(s)q=B.f.cS(c6,"/booking/waitlist")||B.f.cS(c6,"/booking/reservation")
+return A.N(["results",A.a([b2.bf0(o,j==null?2:j)],t.H7)],t.N,t.b5)}if(s)q=B.f.cS(c7,"/booking/waitlist")||B.f.cS(c7,"/booking/reservation")
 else q=!1
 if(q){s=b2.ch
 if(s.length===0)return A.N(["results",[]],t.N,t._)
-return A.N(["results",A.a([B.c.gau(s)],t.H7)],t.N,t.b5)}if(s&&B.f.cS(c6,"/booking/notify")){s=b2.ax
+return A.N(["results",A.a([B.c.gau(s)],t.H7)],t.N,t.b5)}if(s&&B.f.cS(c7,"/booking/notify")){s=b2.ax
 if(s.a===0)return A.N(["results",[]],t.N,t._)
 for(s=new A.ex(s,s.r,s.e,A.J(s).h("ex<1>")),i=b3;s.A();)i=s.d
 for(s=b2.kG(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){l=s[m]
-if(J.o(J.ak(l,b4),i))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c6,"/undoBookingStatus")){h=A.a(c6.split(c0),t.s)
+if(J.o(J.ak(l,b4),i))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c7,"/undoBookingStatus")){h=A.a(c7.split(c0),t.s)
 g=B.c.ed(h,"undoBookingStatus")
 o=g>0?h[g-1]:""
 for(s=b2.kG(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){l=s[m]
-if(J.o(J.ak(l,b4),o))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c6,"/dismissToHistory")){h=A.a(c6.split(c0),t.s)
+if(J.o(J.ak(l,b4),o))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c7,"/dismissToHistory")){h=A.a(c7.split(c0),t.s)
 f=B.c.ed(h,"dismissToHistory")
 o=f>0?h[f-1]:""
 for(s=b2.kG(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){l=s[m]
-if(J.o(J.ak(l,b4),o))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c6,"/booking/batchGet")){e=b2.CW
+if(J.o(J.ak(l,b4),o))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c7,"/booking/batchGet")){e=b2.CW
 if(e.length===0)return A.N(["results",[]],t.N,t._)
 s=b2.kG()
 r=A.ab(s).h("ar<1>")
 d=A.H(new A.ar(s,new A.bvQ(e),r),r.h("L.E"))
-return A.N(["results",d],t.N,t.b5)}if(s&&B.f.cS(c6,"/sendDepositReminderV2")){o=B.c.ga_(B.c.gau(c6.split(b9)).split(c0))
+return A.N(["results",d],t.N,t.b5)}if(s&&B.f.cS(c7,"/sendDepositReminderV2")){o=B.c.ga_(B.c.gau(c7.split(b9)).split(c0))
 for(s=b2.kG(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){l=s[m]
-if(J.o(J.ak(l,b4),o))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s)q=B.f.u(c6,"/app/blocks/blockTables/")||B.f.u(c6,"/app/blocks/unblockTables/")||B.f.u(c6,"/app/blockConfig/")
+if(J.o(J.ak(l,b4),o))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s)q=B.f.u(c7,"/app/blocks/blockTables/")||B.f.u(c7,"/app/blocks/unblockTables/")||B.f.u(c7,"/app/blockConfig/")
 else q=!1
 if(q)return A.N(["message",null,"results",A.a([b2.akw()],t.H7)],t.N,t.ge)
-if(s&&B.f.u(c6,b9))return A.N(["results",[]],t.N,t._)
-q=c5==="PATCH"
-if(q)p=B.f.u(c6,"/table/dirty")||B.f.u(c6,"/table/makeAvailable")
+if(s&&B.f.u(c7,b9)&&!B.f.u(c7,c2)&&!B.f.u(c7,c3))return A.N(["results",[]],t.N,t._)
+q=c6==="PATCH"
+if(q)p=B.f.u(c7,"/table/dirty")||B.f.u(c7,"/table/makeAvailable")
 else p=!1
 if(p)return A.N(["message",null,"results",b2.asr()],t.N,t.ge)
-if(q&&B.f.u(c6,b9)){if(B.f.cS(c6,"/doneV2")||B.f.cS(c6,"/leftBuilding")){e=b2.CW
+if(q&&B.f.u(c7,b9)){if(B.f.cS(c7,"/doneV2")||B.f.cS(c7,"/leftBuilding")){e=b2.CW
 c=A.a([],t.H7)
 for(s=b2.kG(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){l=s[m]
-if(B.c.u(e,J.ak(l,b4)))c.push(l)}return A.N(["results",c],t.N,t.b5)}b=B.c.ga_(B.c.gau(c6.split(b9)).split(c0))
+if(B.c.u(e,J.ak(l,b4)))c.push(l)}return A.N(["results",c],t.N,t.b5)}b=B.c.ga_(B.c.gau(c7.split(b9)).split(c0))
 o=b2.f.j(0,b)
 if(o==null)o=b
 a=b2.kG()
@@ -123310,7 +123310,7 @@ m=0
 for(;;){if(!(m<a.length)){a0=b3
 break}l=a[m]
 if(A.aV(J.ak(l,b4))===o){a0=l
-break}a.length===s||(0,A.a_)(a);++m}if(B.f.cS(c6,"/seatV2")||B.f.cS(c6,"/unseatV2")||B.f.cS(c6,"/moveV2")||B.f.cS(c6,"/serverV2")){a1=A.a([],t.H7)
+break}a.length===s||(0,A.a_)(a);++m}if(B.f.cS(c7,"/seatV2")||B.f.cS(c7,"/unseatV2")||B.f.cS(c7,"/moveV2")||B.f.cS(c7,"/serverV2")){a1=A.a([],t.H7)
 s=a0==null
 if(!s)a1.push(A.N(["order",b2.a6i(a0),"booking",a0],t.N,t.z))
 r=b2.w
@@ -123326,46 +123326,46 @@ if(a5!=null)a1.push(A.N(["order",null,"booking",a5],t.N,t.z))
 return A.N(["results",a1],t.N,t.b5)}a1=a0!=null?[a0]:[]
 a5=b2.asE()
 if(a5!=null)a1.push(a5)
-return A.N(["results",a1],t.N,t._)}if(c5==="DELETE"&&B.f.u(c6,b9))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.cS(c6,"/app/blocks")){s=t.N
-return A.N(["message",null,"results",A.a([A.N(["blockedConfigs",A.M(s,t.z)],s,t.P)],t.tS)],s,t.hf)}if(r&&B.f.u(c6,"/app/blocks/"))return A.N(["message",null,"results",A.a([b2.akw()],t.H7)],t.N,t.ge)
-if(r&&B.f.u(c6,"/app/orders")){a6=A.a([],t.H7)
+return A.N(["results",a1],t.N,t._)}if(c6==="DELETE"&&B.f.u(c7,b9))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.cS(c7,"/app/blocks")){s=t.N
+return A.N(["message",null,"results",A.a([A.N(["blockedConfigs",A.M(s,t.z)],s,t.P)],t.tS)],s,t.hf)}if(r&&B.f.u(c7,"/app/blocks/"))return A.N(["message",null,"results",A.a([b2.akw()],t.H7)],t.N,t.ge)
+if(r&&B.f.u(c7,"/app/orders")){a6=A.a([],t.H7)
 for(s=b2.kG(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){a7=b2.a6i(s[m])
-if(a7!=null)a6.push(a7)}return A.N(["results",a6],t.N,t.b5)}if(q&&B.f.u(c6,"/orders/"))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,"availabilitiesV2"))return A.N(["results",b2.bnY()],t.N,t.b5)
-if(r&&B.f.u(c6,"configInfo")){s=t.N
+if(a7!=null)a6.push(a7)}return A.N(["results",a6],t.N,t.b5)}if(q&&B.f.u(c7,"/orders/"))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,"availabilitiesV2"))return A.N(["results",b2.bnY()],t.N,t.b5)
+if(r&&B.f.u(c7,"configInfo")){s=t.N
 r=t.K
-return A.N(["message",null,"results",A.a([A.N(["default",A.N(["guid","sched-default","name","All Day","configs",A.a([new A.bvT().$2("shift-all-day","All Day")],t.H7)],s,r),"experiences",[]],s,r)],t.He)],s,t.wg)}if(B.f.u(c6,"previewEstimate")){s=c7.j(0,c1)
+return A.N(["message",null,"results",A.a([A.N(["default",A.N(["guid","sched-default","name","All Day","configs",A.a([new A.bvT().$2("shift-all-day","All Day")],t.H7)],s,r),"experiences",[]],s,r)],t.He)],s,t.wg)}if(B.f.u(c7,"previewEstimate")){s=c8.j(0,c1)
 j=A.mV(s==null?"":s,b3)
-return A.N(["results",A.a([b2.bm2(j==null?2:j)],t.H7)],t.N,t.b5)}if(r&&B.f.u(c6,"event-showings"))return[]
-if(r&&B.f.u(c6,"serverAssignment"))return A.N(["results",b2.ari()],t.N,t.b5)
-if(s&&B.f.u(c6,"roster/replace"))return A.N(["employees",b2.a2O(),"serverAssignments",b2.ari()],t.N,t.b5)
-if(r&&B.f.u(c6,"shiftCutoff"))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,"listColors"))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,c2))return A.N(["results",b2.a2O()],t.N,t.b5)
-if(s&&B.f.u(c6,c2))return A.N(["results",A.a([B.c.ga_(b2.a2O())],t.H7)],t.N,t.b5)
-if(r&&B.f.u(c6,"section"))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,"coverage"))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,c3))return A.N(["results",[]],t.N,t._)
-if(s&&B.f.u(c6,"section"))return A.N(["results",[]],t.N,t._)
-if(s&&B.f.u(c6,c3))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,"guestTags")){s=t.N
+return A.N(["results",A.a([b2.bm2(j==null?2:j)],t.H7)],t.N,t.b5)}if(r&&B.f.u(c7,"event-showings"))return[]
+if(r&&B.f.u(c7,"serverAssignment"))return A.N(["results",b2.ari()],t.N,t.b5)
+if(s&&B.f.u(c7,"roster/replace"))return A.N(["employees",b2.a2O(),"serverAssignments",b2.ari()],t.N,t.b5)
+if(r&&B.f.u(c7,"shiftCutoff"))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,"listColors"))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,c4))return A.N(["results",b2.a2O()],t.N,t.b5)
+if(s&&B.f.u(c7,c4))return A.N(["results",A.a([B.c.ga_(b2.a2O())],t.H7)],t.N,t.b5)
+if(r&&B.f.u(c7,"section"))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,"coverage"))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,c5))return A.N(["results",[]],t.N,t._)
+if(s&&B.f.u(c7,"section"))return A.N(["results",[]],t.N,t._)
+if(s&&B.f.u(c7,c5))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,"guestTags")){s=t.N
 r=t.z
-return A.N(["results",A.a([A.N(["tagGuid","efea3d6a-9847-4beb-8bd3-964813bb32b8","text","VIP","shortText","VIP","description",null,"icon","\ud83d\udc51","type","DEFAULT"],s,r),A.N(["tagGuid","tag-birthday","text","Birthday","shortText","BDAY","description",null,"icon","\ud83c\udf82","type","CUSTOM"],s,r),A.N(["tagGuid","tag-anniversary","text","Anniversary","shortText","ANN","description",null,"icon","\ud83d\udc9d","type","CUSTOM"],s,r),A.N(["tagGuid","tag-allergy","text","Allergy","shortText","ALRG","description",null,"icon","\u26a0\ufe0f","type","CUSTOM"],s,r)],t.H7)],s,t.b5)}if(r)p=B.f.u(c6,"querySearch")||B.f.u(c6,"guestSearch")
+return A.N(["results",A.a([A.N(["tagGuid","efea3d6a-9847-4beb-8bd3-964813bb32b8","text","VIP","shortText","VIP","description",null,"icon","\ud83d\udc51","type","DEFAULT"],s,r),A.N(["tagGuid","tag-birthday","text","Birthday","shortText","BDAY","description",null,"icon","\ud83c\udf82","type","CUSTOM"],s,r),A.N(["tagGuid","tag-anniversary","text","Anniversary","shortText","ANN","description",null,"icon","\ud83d\udc9d","type","CUSTOM"],s,r),A.N(["tagGuid","tag-allergy","text","Allergy","shortText","ALRG","description",null,"icon","\u26a0\ufe0f","type","CUSTOM"],s,r)],t.H7)],s,t.b5)}if(r)p=B.f.u(c7,"querySearch")||B.f.u(c7,"guestSearch")
 else p=!1
 if(p)return A.N(["results",b2.a3y()],t.N,t.b5)
-if(r&&B.f.u(c6,"/guests"))return A.N(["results",b2.a3y()],t.N,t.b5)
-if(r&&B.f.u(c6,"/guest/")&&B.f.cS(c6,"/bookingsV2")){h=A.a(c6.split(c0),t.s)
+if(r&&B.f.u(c7,"/guests"))return A.N(["results",b2.a3y()],t.N,t.b5)
+if(r&&B.f.u(c7,"/guest/")&&B.f.cS(c7,"/bookingsV2")){h=A.a(c7.split(c0),t.s)
 a8=B.c.ed(h,"guest")
 o=a8>=0&&a8+1<h.length?h[a8+1]:""
 s=b2.kG()
 r=A.ab(s).h("ar<1>")
 d=A.H(new A.ar(s,new A.bvR(o),r),r.h("L.E"))
-return A.N(["results",d],t.N,t.b5)}if(q&&B.f.u(c6,c4)){h=A.a(c6.split(c0),t.s)
+return A.N(["results",d],t.N,t.b5)}if(q&&B.f.u(c7,c2)){h=A.a(c7.split(c0),t.s)
 a8=B.c.ed(h,"guest")
 o=a8>=0&&a8+1<h.length?h[a8+1]:""
 for(s=b2.a3y(),r=s.length,m=0;m<s.length;s.length===r||(0,A.a_)(s),++m){a9=s[m]
-if(J.o(J.ak(a9,b4),o))return A.N(["results",A.a([a9],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c6,c4)){s=b2.z
+if(J.o(J.ak(a9,b4),o))return A.N(["results",A.a([a9],t.H7)],t.N,t.b5)}return A.N(["results",[]],t.N,t._)}if(s&&B.f.cS(c7,c2)){s=b2.z
 if(s.length===0){A.nb("[DEMO] POST /guest/ response: _extraGuests EMPTY \u2014 returning {results: []}. This means onRequest did NOT capture (body wasn't a Map, or path mismatch).")
 return A.N(["results",[]],t.N,t._)}a9=B.c.gau(s)
 s=A.d(a9.j(0,b4))
@@ -123373,18 +123373,18 @@ r=A.d(a9.j(0,"firstName"))
 q=A.J(a9).h("c4<1>")
 q=A.H(new A.c4(a9,q),q.h("L.E"))
 A.nb("[DEMO] POST /guest/ response: guid="+s+" firstName="+r+" fields="+A.d(q))
-return A.N(["results",A.a([a9],t.H7)],t.N,t.b5)}if(s&&B.f.u(c6,"/checkExistingGuest"))return A.N(["results",[]],t.N,t._)
-if(r&&B.f.u(c6,b9)){b0=B.c.gau(c6.split(b9))
+return A.N(["results",A.a([a9],t.H7)],t.N,t.b5)}if(s&&B.f.u(c7,c3))return A.N(["results",[]],t.N,t._)
+if(r&&B.f.u(c7,b9)){b0=B.c.gau(c7.split(b9))
 if(b0.length!==0&&!B.f.u(b0,c0)&&!B.f.u(b0,"?"))for(q=b2.kG(),p=q.length,m=0;m<q.length;q.length===p||(0,A.a_)(q),++m){l=q[m]
-if(J.o(J.ak(l,b4),b0))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}}if(B.f.u(c6,"smsThread")){b1=A.a([],t.H7)
+if(J.o(J.ak(l,b4),b0))return A.N(["results",A.a([l],t.H7)],t.N,t.b5)}}if(B.f.u(c7,"smsThread")){b1=A.a([],t.H7)
 b2.ax.aT(0,new A.bvS(b2.kG(),b1))
-return A.N(["results",b1],t.N,t.b5)}if(B.f.u(c6,"sendSmsMessage")||B.f.u(c6,"markSmsThreadRead")||B.f.u(c6,"hasPinnedMessageThread"))return A.N(["results",[]],t.N,t._)
-if(B.f.u(c6,"notify"))return A.N(["results",[]],t.N,t._)
-if(B.f.u(c6,"experience"))return A.N(["message",null,"results",[]],t.N,t.kc)
-if(B.f.u(c6,"appConfig")){s=t.N
-return A.N(["features",A.M(s,t.z)],s,t.P)}if(s&&B.f.u(c6,"cloudSync"))return A.N(["bookings",[]],t.N,t._)
-if(r){A.nb("[DEMO] UNHANDLED GET (returning empty): "+c6)
-return A.N(["results",[]],t.N,t._)}A.nb("[DEMO] UNHANDLED "+c5+" (returning {}): "+c6)
+return A.N(["results",b1],t.N,t.b5)}if(B.f.u(c7,"sendSmsMessage")||B.f.u(c7,"markSmsThreadRead")||B.f.u(c7,"hasPinnedMessageThread"))return A.N(["results",[]],t.N,t._)
+if(B.f.u(c7,"notify"))return A.N(["results",[]],t.N,t._)
+if(B.f.u(c7,"experience"))return A.N(["message",null,"results",[]],t.N,t.kc)
+if(B.f.u(c7,"appConfig")){s=t.N
+return A.N(["features",A.M(s,t.z)],s,t.P)}if(s&&B.f.u(c7,"cloudSync"))return A.N(["bookings",[]],t.N,t._)
+if(r){A.nb("[DEMO] UNHANDLED GET (returning empty): "+c7)
+return A.N(["results",[]],t.N,t._)}A.nb("[DEMO] UNHANDLED "+c6+" (returning {}): "+c7)
 return A.M(t.N,t.z)},
 iO(a,b,c,d,e,f,g,h,i){return A.N(["guid",a,"name",f,"top",g,"left",c,"width",i,"height",b,"type",h,"minCapacity",e,"maxCapacity",d],t.N,t.z)},
 arH(a,b,c,d,e,f,g){return A.N(["guid",a,"label",c,"top",e,"left",d,"width",g,"height",b,"type",f],t.N,t.z)},
