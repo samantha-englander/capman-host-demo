@@ -28,6 +28,23 @@ cp overlay/lib/shared_data/services/demo_feature_flag_service.dart \
 cp overlay/lib/entry_point.dart         _capman_host/lib/entry_point.dart
 cp overlay/main_demo.dart               _capman_host/lib/main_demo.dart
 
+echo "==> Patching out hardcoded 'New' badge beside Host App v2 (Beta Updates)..."
+# The "New" badge next to "Host App v2" in Settings > Beta Updates is a
+# hardcoded, UNCONDITIONAL `const BadgeV2New(...)` in beta_updates_view.dart
+# — not gated by any highlight flow, so the acknowledgeAllFlows() suppression
+# in entry_point.dart (which kills every other "New" badge + walkthrough)
+# can't reach it. Swap it for a no-op SizedBox so the Row's widget tree stays
+# structurally identical (no dangling comma / broken children list).
+# Non-fatal verify: if capman-host renames the badge the demo still builds;
+# the badge would just reappear and we'd re-patch.
+BETA_VIEW="_capman_host/lib/features/main/main/ui/drawer/settings/beta_updates_view.dart"
+sed -i 's/const BadgeV2New(size: BadgeV2Size.Medium),/const SizedBox.shrink(),/' "$BETA_VIEW"
+if grep -q "BadgeV2New" "$BETA_VIEW"; then
+  echo "    WARN: BadgeV2New still present in beta_updates_view.dart — pattern may have changed; badge could reappear."
+else
+  echo "    OK — Host App v2 'New' badge suppressed."
+fi
+
 echo "==> Configuring git for HTTPS access to Toast GitHub..."
 git config --global url."https://x-access-token:${TOAST_GITHUB_TOKEN}@github.toasttab.com/".insteadOf "git@github.toasttab.com:"
 
