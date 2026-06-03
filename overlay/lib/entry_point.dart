@@ -259,24 +259,46 @@ Future<Widget> appWrapper(final Env environment) async {
         ),
       ),
       BlocProvider<HighlightCubit>(
-        create: (_) => HighlightCubit(
-          getIt<SharedPreferences>(),
-          allFlows: [
-            betaUpdatesFlow,
-            redesignFlow,
-            coverStatsFlow,
-            timeBasedBlocksFlow,
-            feedFlow,
-            bookingAlertsButtonFlow,
-            bookingAlertsPanelFlow,
-            bookingAlertsSettingsFlow,
-            combinedViewHomeFlow,
-            combinedViewSettingsTileFlow,
-            combinedViewConfigureFlow,
-            combinedViewSettingsTutorialFlow,
-          ],
-          highlightsEnabled: environment != Env.TEST && environment != Env.DEMO,
-        ),
+        create: (_) {
+          final cubit = HighlightCubit(
+            getIt<SharedPreferences>(),
+            allFlows: [
+              betaUpdatesFlow,
+              redesignFlow,
+              coverStatsFlow,
+              timeBasedBlocksFlow,
+              feedFlow,
+              bookingAlertsButtonFlow,
+              bookingAlertsPanelFlow,
+              bookingAlertsSettingsFlow,
+              combinedViewHomeFlow,
+              combinedViewSettingsTileFlow,
+              combinedViewConfigureFlow,
+              combinedViewSettingsTutorialFlow,
+            ],
+            highlightsEnabled: environment != Env.TEST && environment != Env.DEMO,
+          );
+          // Demo: mark every highlight flow as already-acknowledged so NO
+          // "New" badges render (bottom nav + in-screen drawer/Settings
+          // tiles) and NO coachmark / guided-walkthrough overlays enqueue.
+          //
+          // highlightsEnabled:false alone is NOT enough — it only gates the
+          // overlay (one `if (!_highlightsEnabled) return;` in _nextInQueue).
+          // The "New" badges read HighlightState.isUnAcknowledged(flowId)
+          // directly and never consult highlightsEnabled, which is why they
+          // kept showing. acknowledgeAllFlows() iterates state.allFlows at
+          // runtime — writing each `${id}_acknowledged` pref and emitting a
+          // state whose acknowledgedFlows set contains every id — so badges
+          // resolve to false everywhere and _enqueue() short-circuits any
+          // flow. Because it's runtime-driven, any flow capman-host adds
+          // later is auto-suppressed with no per-flow maintenance here.
+          // add() is a synchronous switch (not an async handler), so this
+          // resolves before first render — no one-frame badge flash.
+          if (environment == Env.DEMO) {
+            cubit.add(const HighlightEvent.acknowledgeAllFlows());
+          }
+          return cubit;
+        },
       ),
       BlocProvider<DrawerBloc>(
         create: (context) => DrawerBloc(
