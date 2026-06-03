@@ -94,6 +94,19 @@ class DemoMockInterceptor extends Interceptor {
   // seat-action response) suppresses the host-action alert that the fresh
   // date would otherwise trip.
   final Map<String, String> _modifiedDateOverrides = {};
+  // Fixed wall-clock anchor captured once at construction. Used for the
+  // synthetic OrderDto timestamps so they DON'T drift on every /orders poll.
+  // The floor plan recomputes all tiles via `orders.distinct(DeepCollection
+  // Equality)` — it only re-derives when the orders list changes by value.
+  // Previously the synthetic order stamped createdAt/modifiedAt/paidTime/
+  // firstOrderedTime from a per-call DateTime.now() (and start = now - offset,
+  // which also drifts), so every poll produced a deep-unequal list, defeating
+  // .distinct and forcing a full tile recompute/re-render every 10s — which
+  // surfaced as PAID tiles flickering on a move. Anchoring to a fixed value
+  // makes a party whose real state is unchanged yield a byte-identical order
+  // across polls, so .distinct suppresses the redundant emit. A genuine move
+  // still changes tableGuids, so that update propagates normally.
+  final DateTime _sessionStart = DateTime.now();
 
   /// BlockConfig DTO carrying the live blocked-table set. Shape verified
   /// against capman-host BlockConfig: all flags + name/reason + the two
@@ -2411,23 +2424,29 @@ class DemoMockInterceptor extends Interceptor {
     final synthetic = _syntheticOrderState(b, elapsedMin);
     if (synthetic == 'IDLE') return null;
     final guid = b['guid'] as String;
-    final firstOrdered = start.add(const Duration(minutes: 15));
+    // All timestamps anchor to the fixed _sessionStart, NOT to per-call now()
+    // / start (which drift every poll). The floor plan only reads `status` +
+    // `tableGuids`; these timestamps are cosmetic (the order/check detail
+    // isn't surfaced in the demo). Keeping them fixed makes the order
+    // byte-stable across polls so `orders.distinct(...)` suppresses redundant
+    // emits and the tile stops flickering. See _sessionStart field comment.
+    final anchorIso = _sessionStart.toIso8601String();
     return {
       'guid': 'order-$guid',
       'completed': synthetic == 'PAID',
       'status': synthetic,
-      'createdAt': start.toIso8601String(),
+      'createdAt': anchorIso,
       'bookingGuid': guid,
       'tableGuid': tables.first,
       'tableGuids': tables,
       'serverGuid': b['server'] is String ? b['server'] : null,
       'partySize': b['partySize'],
-      'modifiedAt': now.toIso8601String(),
+      'modifiedAt': anchorIso,
       'course': null,
       'menuItems': null,
       'orderTotal': null,
-      'paidTime': synthetic == 'PAID' ? now.toIso8601String() : null,
-      'firstOrderedTime': firstOrdered.toIso8601String(),
+      'paidTime': synthetic == 'PAID' ? anchorIso : null,
+      'firstOrderedTime': anchorIso,
     };
   }
 
