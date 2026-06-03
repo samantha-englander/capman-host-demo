@@ -82,6 +82,18 @@ class DemoMockInterceptor extends Interceptor {
   // Server assignment from PATCH /booking/{guid}/serverV2 — body has
   // {employeeGuid}; we stash it and rebuild the server object on read.
   final Map<String, String> _serverOverrides = {};
+  // booking guid → ISO modifiedDate, stamped to "now" on every mutating
+  // action (seat / move / etc.). capman-host's BookingsListUpdateStreamManager
+  // upserts a booking only when `newBooking.modifiedDate.isAfter(cached)`
+  // (the seatV2/moveV2 SeatActionDto response feeds that same upsert path,
+  // which never removes the old guid). If a mutation's modifiedDate is not
+  // strictly newer than what the bloc cached, the update is silently
+  // dropped — which is why a moved party used to stay stuck on its old
+  // table. Stamping a fresh now() per mutation keeps modifiedDate strictly
+  // monotonic so every update is accepted; trackChange() (called in the
+  // seat-action response) suppresses the host-action alert that the fresh
+  // date would otherwise trip.
+  final Map<String, String> _modifiedDateOverrides = {};
 
   /// BlockConfig DTO carrying the live blocked-table set. Shape verified
   /// against capman-host BlockConfig: all flags + name/reason + the two
@@ -332,62 +344,54 @@ class DemoMockInterceptor extends Interceptor {
     } else if (path.endsWith('/noShowV2')) {
       newStatus = r('NO_SHOW');
     } else if (path.endsWith('/seatV2')) {
-      // Walk-in seat: the demo-* booking was born WAITLIST and the bloc
-      // caches stream membership by first-seen type. Flipping bookingType
-      // mid-life doesn't migrate the booking from waitlist→reservation
-      // stream. Replace it with a fresh RESERVATION-typed booking under
-      // a new guid so the bloc routes it to the reservation stream from
-      // first sight. Seeded waitlist guids (wait-*) stay W_SEATED for
-      // the seat-from-waitlist-tab flow.
+      // Seat a booking IN PLACE — no guid promotion.
+      //
+      // History: we used to "promote" a demo-* booking by deleting it and
+      // synthesizing a fresh RESERVATION-typed booking under a brand-new
+      // demo-seat-* guid, on the theory that capman-host caches a booking's
+      // stream membership (waitlist vs reservation) by first-seen
+      // bookingType and won't re-route on a later type change. A source
+      // review of ReservationsBloc._mapAndEmitNewState disproved that: the
+      // reservations and waitlist panes are re-partitioned from
+      // booking.bookingType on EVERY poll (`isReservation`/`isWaitList` are
+      // pure getters off the current type), so flipping type in place routes
+      // correctly without a new guid.
+      //
+      // The promoted second guid was in fact the bug: the seatV2/moveV2
+      // SeatActionDto response feeds the bloc's UPSERT-ONLY path (it never
+      // removes the old guid), and the promotion backdated modifiedDate to
+      // suppress a NewBooking alert. A later Move then carried that stale
+      // modifiedDate, so the bloc's `newBooking.modifiedDate.isAfter(cached)`
+      // gate rejected the update and the party stayed stuck on its original
+      // table. (Seat appeared to work only because the new guid was unseen,
+      // so the upsert inserted it unconditionally.)
+      //
+      // In place: flip status → R_SEATED (W_SEATED for wait-* seeds),
+      // promote bookingType → RESERVATION so a seated walk-in leaves the
+      // waitlist pane, assign the dropped tables, and stamp modifiedDate to
+      // NOW (see _modifiedDateOverrides) so the update is strictly newer
+      // than the cached copy and the upsert gate accepts it. trackChange()
+      // in the seat-action response suppresses the host-action alert.
+      final isWaitGuid = guid.startsWith('wait-');
+      newStatus = isWaitGuid ? 'W_SEATED' : 'R_SEATED';
+      if (!isWaitGuid) {
+        _bookingTypeOverrides[guid] = 'RESERVATION';
+      }
+      if (body is Map && body['tableGuids'] is List) {
+        final tbls = (body['tableGuids'] as List).whereType<String>().toList();
+        if (tbls.isNotEmpty) {
+          _tableAssignmentOverrides[guid] = tbls;
+          // Auto-move conflicting unpinned reservations off these tables.
+          _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), 2, guid);
+        }
+      }
+      // Only user-created (demo-*) bookings need the fresh-modifiedDate
+      // stamp. Seeded bookings carry a days-old modifiedDate that keeps them
+      // below the alert filter's sessionStart threshold (natural alert
+      // suppression) AND their seat/move updates already propagate today —
+      // so leave them untouched to avoid regressing working flows.
       if (guid.startsWith('demo-')) {
-        Map<String, dynamic>? original;
-        for (final b in _extraBookings) {
-          if (b['guid'] == guid) { original = b; break; }
-        }
-        if (original != null) {
-          _extraBookings.remove(original);
-          final tbls = (body is Map && body['tableGuids'] is List)
-              ? (body['tableGuids'] as List).whereType<String>().toList()
-              : <String>[];
-          final nowIso = DateTime.now().toIso8601String();
-          final newGuid = 'demo-seat-${DateTime.now().microsecondsSinceEpoch}';
-          final replacement = Map<String, dynamic>.from(original);
-          replacement['guid'] = newGuid;
-          replacement['bookingType'] = 'RESERVATION';
-          replacement['bookingStatus'] = 'R_SEATED';
-          replacement['tables'] = tbls;
-          replacement['actualStartTime'] = nowIso;
-          // Deliberately backdate modifiedDate (and preserve original's
-          // createdDate) so the BookingAlertsBloc does NOT treat this
-          // walk-in seat as a fresh NewBooking. Host-initiated actions
-          // should be invisible to the notification feed.
-          final past = DateTime.now()
-              .subtract(const Duration(days: 2))
-              .toIso8601String();
-          replacement['modifiedDate'] = past;
-          replacement['createdDate'] = past;
-          _extraBookings.add(replacement);
-          _walkinSeatRemap[guid] = newGuid;
-          // Auto-move any unpinned reservation conflicting with this walk-in.
-          final partySize = (replacement['partySize'] as int?) ?? 2;
-          _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), partySize, newGuid);
-        }
-        // Do NOT set _statusOverrides[guid] etc. — the old guid is gone.
-      } else {
-        // Seeded waitlist or other RESERVATION guid — original behavior.
-        final isWaitGuid = guid.startsWith('wait-');
-        newStatus = isWaitGuid ? 'W_SEATED' : 'R_SEATED';
-        if (!isWaitGuid) {
-          _bookingTypeOverrides[guid] = 'RESERVATION';
-        }
-        if (body is Map && body['tableGuids'] is List) {
-          final tbls = (body['tableGuids'] as List).whereType<String>().toList();
-          if (tbls.isNotEmpty) {
-            _tableAssignmentOverrides[guid] = tbls;
-            // Auto-move conflicting unpinned reservations off these tables.
-            _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), 2, guid);
-          }
-        }
+        _modifiedDateOverrides[guid] = DateTime.now().toIso8601String();
       }
     } else if (path.endsWith('/moveV2')) {
       // Move-table action — same body shape as seatV2; only the tables
@@ -410,6 +414,14 @@ class DemoMockInterceptor extends Interceptor {
           // Auto-move conflicting unpinned reservations off the new tables.
           _bumpConflictingUnpinnedReservations(tbls, DateTime.now(), 2, guid);
         }
+      }
+      // Stamp modifiedDate fresh (user-created bookings only) so the move is
+      // strictly newer than the cached copy — otherwise the bloc's upsert
+      // gate drops the update and the party stays stuck on its origin table.
+      // Seeded bookings already move correctly and keep their days-old date
+      // for natural alert suppression (see seatV2 note above).
+      if (guid.startsWith('demo-')) {
+        _modifiedDateOverrides[guid] = DateTime.now().toIso8601String();
       }
     } else if (path.endsWith('/unseatV2')) {
       newStatus = r('CONFIRMED');
@@ -947,6 +959,15 @@ class DemoMockInterceptor extends Interceptor {
         // BookingChangeAlert because the bloc diffs the list content.
         final results = <Map<String, dynamic>>[];
         if (found != null) {
+          // Suppress the host-action alert for the seated/moved booking.
+          // Its modifiedDate is now stamped fresh (see _modifiedDateOverrides)
+          // so the upsert gate accepts the update — but a fresh modifiedDate
+          // would also pass the BookingAlertsBloc's sessionStart filter and
+          // fire a spurious BookingChange alert. trackChange() is
+          // capman-host's official host-action suppression hook
+          // (wasTriggeredLocally), and replaces the old modifiedDate-backdating
+          // trick (which broke the upsert and stranded moved parties).
+          _changeTracker.trackChange(found['guid'] as String);
           // Include the synthetic OrderDto (when one applies) so a Move Table
           // immediately repaints both the new AND old table tiles. Order guid
           // is stable per booking — the bloc replaces the prior cache entry
@@ -1659,7 +1680,8 @@ class DemoMockInterceptor extends Interceptor {
         _tableAssignmentOverrides.isNotEmpty ||
         _bookingTypeOverrides.isNotEmpty ||
         _bookingEditOverrides.isNotEmpty ||
-        _serverOverrides.isNotEmpty) {
+        _serverOverrides.isNotEmpty ||
+        _modifiedDateOverrides.isNotEmpty) {
       for (final b in list) {
         final guid = b['guid'] as String?;
         // Edit override (partySize / dateTime / notes / etc. from edit
@@ -1699,6 +1721,14 @@ class DemoMockInterceptor extends Interceptor {
         final emp = _serverOverrides[guid];
         if (emp != null) {
           b['server'] = emp;
+        }
+        // Fresh modifiedDate from the most recent mutation (seat/move). Must
+        // be applied so the bloc's upsert gate (newBooking.modifiedDate
+        // .isAfter(cached)) accepts the update; without it, moves silently
+        // no-op and the party stays on its origin table.
+        final freshModified = _modifiedDateOverrides[guid];
+        if (freshModified != null) {
+          b['modifiedDate'] = freshModified;
         }
         final override = _statusOverrides[guid];
         if (override != null) {
