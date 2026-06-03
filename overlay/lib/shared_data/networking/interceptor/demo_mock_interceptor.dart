@@ -2433,7 +2433,20 @@ class DemoMockInterceptor extends Interceptor {
     final anchorIso = _sessionStart.toIso8601String();
     return {
       'guid': 'order-$guid',
-      'completed': synthetic == 'PAID',
+      // MUST stay false even for PAID. The floor plan derives the tile state
+      // from `status` (PAID → paid()), NOT from `completed`. But the app's
+      // BookingRepositoryImpl._upsertOrderDtos — which the seat/move
+      // SeatActionDto response feeds — rebuilds the orders list with
+      // `.where((e) => !e.completed)`, DROPPING every completed order. With
+      // completed:true, seating/moving ANY party silently evicted ALL PAID
+      // orders at once (every PAID tile fell back to seated()), and the
+      // moved PAID party showed non-PAID at its new table — until the next
+      // 10s /orders poll (fetchAllOrders, which doesn't filter completed)
+      // re-added them. That round-trip was the "PAID tile flicker" + the
+      // "long delay before it goes back to PAID." A paid-but-still-seated
+      // party is correctly `status: PAID` yet NOT completed (completed =
+      // check closed AND table turned), so false is also semantically right.
+      'completed': false,
       'status': synthetic,
       'createdAt': anchorIso,
       'bookingGuid': guid,
